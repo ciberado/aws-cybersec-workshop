@@ -2,6 +2,39 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.1.0] - 2026-01-04 - S3 Data Bucket Validation Implementation
+
+### ✨ Added
+- **Complete S3 Data Bucket Validation**: First fully functional exercise with real AWS integration
+  - Automatic bucket discovery using ListBuckets and GetBucketTagging APIs
+  - Comprehensive security validation including Block Public Access settings
+  - Real file download and content validation for pokemon.csv
+  - Detailed test results with pass/fail/warning status for each security check
+- **Enhanced Security Checks**:
+  - Block Public Access configuration validation (all 4 settings)
+  - Bucket policy analysis for public principals
+  - Bucket ACL scanning for public grants
+  - Bucket policy status verification
+- **Improved UI**:
+  - Collapsible detailed test results with individual test status
+  - Enhanced test condition display with icons and color coding
+  - Better error messages and remediation guidance
+- **Enhanced Type System**:
+  - `TestCondition` interface for structured test results
+  - Updated `ExerciseResult` with `testResults` array
+  - Better validation result structures
+
+### 🐛 Fixed
+- **Vite Proxy Configuration**: Fixed API proxy to point to correct backend port (3002)
+- **Credential Storage**: Added session-based credential storage for exercise validation
+- **Bucket Discovery**: Replaced pattern-based guessing with proper tag-based bucket discovery
+
+### 🔧 Technical Improvements
+- Added comprehensive S3 API integration (ListBuckets, GetBucketTagging, GetPublicAccessBlock)
+- Implemented real file download with content validation
+- Enhanced error handling and detailed feedback
+- Structured validation pipeline with individual test tracking
+
 ## [0.2.0] - 2026-01-04 - AWS Integration & Credentials Management
 
 ### ✨ Added

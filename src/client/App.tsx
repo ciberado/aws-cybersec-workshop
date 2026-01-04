@@ -1,7 +1,15 @@
-import { AppShell, Burger, Group, Title, Text, Container, Card, Badge, Button, Stack, Textarea, Paper, Alert, Code, Divider, Flex } from '@mantine/core'
+import { AppShell, Burger, Group, Title, Text, Container, Card, Badge, Button, Stack, Textarea, Paper, Alert, Code, Divider, Flex, Collapse, List, ThemeIcon } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconShieldCheck, IconServer, IconDatabase, IconKey, IconAlertCircle, IconCheck, IconNetwork } from '@tabler/icons-react'
+import { IconShieldCheck, IconServer, IconDatabase, IconKey, IconAlertCircle, IconCheck, IconNetwork, IconX, IconExclamationMark, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
+
+interface TestCondition {
+  name: string
+  description: string
+  status: 'pass' | 'fail' | 'error' | 'warning'
+  message: string
+  details?: string
+}
 
 interface Exercise {
   id: string
@@ -10,6 +18,12 @@ interface Exercise {
   status: 'pending' | 'checking' | 'passed' | 'failed'
   category: 'iam' | 's3' | 'ec2' | 'rds' | 'general' | 'vpc' | 'lb'
   points: number
+  lastResult?: {
+    passed: boolean
+    message: string
+    testResults?: TestCondition[]
+    details?: any
+  }
 }
 
 interface AWSAccountInfo {
@@ -28,6 +42,8 @@ function App() {
   const [accountInfo, setAccountInfo] = useState<AWSAccountInfo | null>(null)
   const [credentialsError, setCredentialsError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     // Only fetch exercises if authenticated
@@ -61,17 +77,20 @@ function App() {
 
       if (result.success && result.data.isValid) {
         setAccountInfo(result.data.accountInfo)
+        setSessionId(result.data.sessionId)
         setIsAuthenticated(true)
         setCredentialsError(null)
       } else {
         setCredentialsError(result.data?.error || result.error || 'Invalid credentials')
         setIsAuthenticated(false)
         setAccountInfo(null)
+        setSessionId(null)
       }
     } catch (error) {
       setCredentialsError('Failed to validate credentials. Please try again.')
       setIsAuthenticated(false)
       setAccountInfo(null)
+      setSessionId(null)
     } finally {
       setIsValidating(false)
     }
@@ -83,15 +102,33 @@ function App() {
     ))
 
     try {
-      const response = await fetch(`/api/exercises/${exerciseId}/check`, { method: 'POST' })
+      const response = await fetch(`/api/exercises/${exerciseId}/check`, { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId })
+      })
       const result = await response.json()
       
       setExercises(prev => prev.map(ex => 
-        ex.id === exerciseId ? { ...ex, status: result.passed ? 'passed' : 'failed' } : ex
+        ex.id === exerciseId ? { 
+          ...ex, 
+          status: result.passed ? 'passed' : 'failed',
+          lastResult: result
+        } : ex
       ))
     } catch (error) {
       setExercises(prev => prev.map(ex => 
-        ex.id === exerciseId ? { ...ex, status: 'failed' } : ex
+        ex.id === exerciseId ? { 
+          ...ex, 
+          status: 'failed',
+          lastResult: { 
+            passed: false, 
+            message: 'Failed to run exercise check',
+            details: { error: 'Network or server error' }
+          }
+        } : ex
       ))
     }
   }
@@ -115,6 +152,38 @@ function App() {
       case 'lb': return <IconNetwork size={20} />
       default: return <IconShieldCheck size={20} />
     }
+  }
+
+  const getTestStatusIcon = (status: TestCondition['status']) => {
+    switch (status) {
+      case 'pass': return <IconCheck size={16} color="green" />
+      case 'fail': return <IconX size={16} color="red" />
+      case 'error': return <IconExclamationMark size={16} color="orange" />
+      case 'warning': return <IconExclamationMark size={16} color="yellow" />
+      default: return <IconAlertCircle size={16} color="gray" />
+    }
+  }
+
+  const getTestStatusColor = (status: TestCondition['status']) => {
+    switch (status) {
+      case 'pass': return 'green'
+      case 'fail': return 'red'
+      case 'error': return 'orange'
+      case 'warning': return 'yellow'
+      default: return 'gray'
+    }
+  }
+
+  const toggleResultExpansion = (exerciseId: string) => {
+    setExpandedResults(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(exerciseId)) {
+        newSet.delete(exerciseId)
+      } else {
+        newSet.add(exerciseId)
+      }
+      return newSet
+    })
   }
 
   return (
@@ -250,6 +319,58 @@ aws_session_token=YOUR_SESSION_TOKEN`}
                         {exercise.description}
                       </Text>
 
+                      {exercise.lastResult && (
+                        <Stack spacing="xs" mb="md">
+                          <Group justify="space-between">
+                            <Text size="sm" fw={500} c={exercise.lastResult.passed ? 'green' : 'red'}>
+                              {exercise.lastResult.message}
+                            </Text>
+                            {exercise.lastResult.testResults && exercise.lastResult.testResults.length > 0 && (
+                              <Button 
+                                variant="subtle" 
+                                size="xs"
+                                leftSection={expandedResults.has(exercise.id) ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                                onClick={() => toggleResultExpansion(exercise.id)}
+                              >
+                                {expandedResults.has(exercise.id) ? 'Hide' : 'Show'} Details
+                              </Button>
+                            )}
+                          </Group>
+
+                          <Collapse in={expandedResults.has(exercise.id)}>
+                            {exercise.lastResult.testResults && (
+                              <Card withBorder p="md" bg="gray.0">
+                                <Title order={6} mb="sm">Test Results</Title>
+                                <List spacing="xs">
+                                  {exercise.lastResult.testResults.map((test, index) => (
+                                    <List.Item key={index} icon={getTestStatusIcon(test.status)}>
+                                      <Stack spacing={2}>
+                                        <Group justify="space-between">
+                                          <Text size="sm" fw={500}>{test.description}</Text>
+                                          <Badge size="xs" color={getTestStatusColor(test.status)}>
+                                            {test.status}
+                                          </Badge>
+                                        </Group>
+                                        <Text size="xs" c="dimmed">{test.message}</Text>
+                                        {test.details && (
+                                          <Text size="xs" c="dimmed" fs="italic">{test.details}</Text>
+                                        )}
+                                      </Stack>
+                                    </List.Item>
+                                  ))}
+                                </List>
+                                
+                                {exercise.lastResult.details?.summary && (
+                                  <Text size="xs" c="dimmed" mt="sm">
+                                    Summary: {exercise.lastResult.details.summary}
+                                  </Text>
+                                )}
+                              </Card>
+                            )}
+                          </Collapse>
+                        </Stack>
+                      )}
+
                       <Button 
                         variant="light" 
                         loading={exercise.status === 'checking'}
@@ -268,6 +389,7 @@ aws_session_token=YOUR_SESSION_TOKEN`}
                 setAccountInfo(null)
                 setCredentialsText('')
                 setCredentialsError(null)
+                setSessionId(null)
               }}>
                 Change Credentials
               </Button>

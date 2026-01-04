@@ -1,18 +1,22 @@
 # AWS Cybersecurity Workshop Application
 
-A TypeScript full-stack application for validating AWS cybersecurity configurations. This application provides a web interface to check various AWS security exercises from the original workshop.
+A TypeScript full-stack application for validating AWS cybersecurity configurations. This application provides a web interface to check various AWS security exercises from the original workshop with **real AWS integration**.
 
 ## Features
 
 - **Frontend**: React with Mantine UI components
 - **Backend**: Express.js server with TypeScript  
-- **Real-time Exercise Checking**: Validate AWS security configurations
+- **AWS Integration**: Real-time validation using AWS SDK
+- **Credential Management**: Secure AWS credential input and validation
+- **Workshop Exercises**: 9 specific exercises matching workshop requirements (10 points total)
+- **Account Information**: Display AWS account details and region
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Technology Stack
 
 - **Frontend**: React 18, TypeScript, Mantine UI, Vite
 - **Backend**: Express.js, TypeScript, Node.js
+- **AWS SDK**: STS, IAM, S3, EC2, RDS, Elastic Load Balancing v2
 - **Development**: Concurrently for parallel dev servers
 
 ## Project Structure
@@ -20,14 +24,16 @@ A TypeScript full-stack application for validating AWS cybersecurity configurati
 ```
 src/
 ├── client/          # React frontend application
-│   ├── App.tsx      # Main React component
+│   ├── App.tsx      # Main React component with authentication flow
 │   ├── main.tsx     # React entry point
 │   └── index.html   # HTML template
 ├── server/          # Express backend server
 │   ├── index.ts     # Server entry point
 │   └── routes/      # API routes
+│       ├── credentials.ts   # AWS credential validation
+│       └── exercises.ts     # Workshop exercises
 └── shared/          # Shared types and utilities
-    └── types.ts     # TypeScript interfaces
+    └── types.ts     # TypeScript interfaces (AWS + Exercise types)
 ```
 
 ## Development
@@ -50,8 +56,8 @@ npm run dev
 ```
 
 This starts both the React development server (Vite) and the Express server concurrently:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
+- Frontend: http://localhost:5175 (Vite auto-selects port, configured for external access)
+- Backend API: http://localhost:3002
 
 ### Build for Production
 
@@ -67,30 +73,167 @@ npm start
 
 ## API Endpoints
 
-- `GET /api/exercises` - Get all available exercises
-- `POST /api/exercises/:id/check` - Check a specific exercise
+- `GET /api/exercises` - Get all workshop exercises (9 exercises)
+- `POST /api/exercises/:id/check` - Check a specific exercise (currently simulated)
+- `POST /api/credentials/validate` - Validate AWS credentials and get account info
 - `GET /api/health` - Health check endpoint
 
-## Available Exercises
+## Workshop Exercises (10 Points Total)
 
-Based on the original workshop, the application includes:
+The application implements the exact 9 exercises from the workshop:
 
-1. **IAM Policies Review** - Check for overly permissive IAM policies
-2. **S3 Bucket Security** - Verify S3 buckets are properly secured
-3. **EC2 Security Groups** - Review security group configurations
-4. **RDS Security** - Check RDS security settings
-5. **VPC Network Security** - Validate VPC configurations
+1. **S3 Data Bucket Security** (1 point) - Verify pokemon.csv access control
+2. **S3 Web Bucket Configuration** (1 point) - Validate public hosting setup  
+3. **VPC Network Design** (1 point) - Check CIDR and subnet segmentation
+4. **Network Route Tables** (2 points) - Verify traffic control between tiers
+5. **Security Groups Microsegmentation** (1 point) - Validate albsg, appsg, bdsg
+6. **RDS Database Protection** (1 point) - Check PostgreSQL Multi-AZ in internal subnets
+7. **Application Load Balancer** (1 point) - Validate ALB and target group config
+8. **Launch Template Security** (1 point) - Verify secure template with IAM role
+9. **Auto Scaling Group** (1 point) - Check ASG in private subnets
+
+## Current Application Flow
+
+### 1. Credential Input
+- User enters AWS credentials in INI format
+- Application parses credentials (access key, secret key, session token)
+- Real-time validation against AWS using STS GetCallerIdentity
+
+### 2. Account Validation  
+- Displays AWS account ID, ARN, User ID, Region
+- Attempts to get IAM user name if permissions allow
+- Shows validation errors if credentials are invalid
+
+### 3. Workshop Exercises
+- Once authenticated, user can access 9 workshop exercises
+- Each exercise shows category, description, and point value
+- Currently simulates exercise checking (next development phase)
 
 ## Usage
 
-1. Open the application in your browser
-2. View the list of security exercises
-3. Click "Check Exercise" to validate AWS configurations
-4. Monitor the status of each exercise (pending, checking, passed, failed)
+### 1. Start Development Environment
+```bash
+npm run dev
+```
 
-## Next Steps
+### 2. Access Application
+- Open browser to http://localhost:5175 (or the port Vite displays)
+- The application will show the AWS Credentials Setup screen
 
-- Integrate with AWS SDK for real AWS resource checking
-- Add authentication and user management
-- Implement detailed reporting and remediation suggestions
-- Add configuration management for AWS credentials
+### 3. Enter AWS Credentials
+Paste your AWS credentials in INI format:
+```ini
+[default]
+aws_access_key_id=YOUR_ACCESS_KEY
+aws_secret_access_key=YOUR_SECRET_KEY
+aws_session_token=YOUR_SESSION_TOKEN
+```
+
+### 4. Validate and Continue
+- Click "Validate Credentials" to verify against AWS
+- Once validated, click "Continue to Exercises"
+- View and interact with the 9 workshop exercises
+
+## Next Development Steps
+
+### Phase 1: Implement Remaining AWS Validation Logic ⚡
+**Priority: High** - Convert remaining simulated checks to real AWS resource validation
+
+#### 1.1 S3 Web Bucket Validation
+- [ ] **S3 Web Bucket Check**: Validate static website hosting
+  - Check bucket website configuration
+  - Verify index.html public accessibility
+  - Ensure proper bucket policy for web hosting
+
+#### 1.2 VPC and Network Validation  
+- [ ] **VPC Architecture Check**: Validate CIDR design and subnet segmentation
+  - Use EC2Client to list VPCs with tags `proyecto=cybersec`
+  - Verify /16 CIDR range and three-tier subnet structure
+  - Check public/private/internal subnet configurations
+- [ ] **Route Table Validation**: Verify traffic control between tiers
+  - Validate Internet Gateway routing for public subnets
+  - Check NAT Gateway routing for private subnets  
+  - Ensure internal subnets have no internet access
+
+#### 1.3 Security and Compute Validation
+- [ ] **Security Groups Check**: Validate microsegmentation rules
+  - Verify albsg (ports 80/443 from 0.0.0.0/0)
+  - Verify appsg (port 8080 from albsg only)
+  - Verify bdsg (port 5432 from appsg only)
+- [ ] **RDS Validation**: Check PostgreSQL database protection
+  - Verify Multi-AZ configuration
+  - Check subnet group uses internal subnets only
+  - Validate security group assignment
+- [ ] **Load Balancer Check**: Validate ALB configuration
+  - Verify Target Group `maintg` exists and health checks
+  - Check ALB `pokemonlb` configuration and security group
+  - Validate listener configuration on port 80
+- [ ] **Compute Layer Validation**: Check Launch Template and Auto Scaling
+  - Verify Launch Template with IAM role assignment
+  - Check Auto Scaling Group in private subnets only
+  - Validate target group registration
+
+### Phase 2: Enhanced Features 🚀
+**Priority: Medium** - Improve user experience and functionality
+
+- [ ] **Detailed Results Display**: Show specific validation results with remediation tips
+- [ ] **Progress Tracking**: Save validation history and score progress
+- [ ] **Export Reports**: Generate PDF/JSON reports of validation results
+- [ ] **Resource Discovery**: Auto-discover AWS resources with project tags
+- [ ] **Real-time Updates**: WebSocket updates for long-running validations
+
+### Phase 3: Advanced Security Features 🔒
+**Priority: Future** - Additional security enhancements
+
+- [ ] **Credential Security**: Implement secure credential storage/encryption
+- [ ] **Multi-Account Support**: Support validation across multiple AWS accounts
+- [ ] **Compliance Reporting**: Generate compliance reports for different frameworks
+- [ ] **Automated Remediation**: Suggest or implement security fixes
+- [ ] **Integration**: Connect with AWS Config, Security Hub, or other tools
+
+### Development Guidelines
+
+#### Code Structure for AWS Validations
+Create validation functions in `/src/server/validators/`:
+```
+src/server/validators/
+├── s3Validators.ts       # S3 bucket validations
+├── vpcValidators.ts      # VPC and networking validations  
+├── securityValidators.ts # Security groups and IAM
+├── computeValidators.ts  # EC2, ALB, RDS validations
+└── index.ts             # Export all validators
+```
+
+#### Implementation Pattern
+Each validator should:
+1. Accept AWS credentials and return structured results
+2. Include error handling for AWS API failures
+3. Provide detailed success/failure messages
+4. Return specific resource information for debugging
+
+#### Testing Strategy
+- Unit tests for each validator function
+- Integration tests with mocked AWS responses
+- Manual testing with real AWS resources
+- Error scenario testing (missing resources, permission errors)
+
+## Contribution Guidelines
+
+1. **Commit Messages**: Use conventional commits (feat:, fix:, docs:)
+2. **Changelog**: Update CHANGELOG.md with each significant change
+3. **Testing**: Test AWS validations with real resources when possible
+4. **Documentation**: Update this file when adding new features
+
+---
+
+## Current Status: ✅ S3 Data Bucket Validation Implemented
+
+The foundation is complete with:
+- ✅ Real AWS credential handling and account validation
+- ✅ Workshop exercise structure matching requirements
+- ✅ UI flow for authentication and exercise display
+- ✅ Proper TypeScript types and error handling
+- ✅ Development environment ready for external access
+- ✅ **S3 Data Bucket Validation with comprehensive security checks**
+
+**Recently completed**: Full implementation of S3 data bucket security validation with real AWS API integration.

@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import type { Exercise, ExerciseResult, APIResponse } from '../../shared/types.js'
+import { validateS3DataBucket } from '../validators/index.js'
+import { getStoredCredentials } from './credentials.js'
 
 const router = Router()
 
@@ -91,6 +93,7 @@ router.get('/', (req, res) => {
 // POST /api/exercises/:id/check - Check a specific exercise
 router.post('/:id/check', async (req, res) => {
   const { id } = req.params
+  const { sessionId } = req.body
   const exercise = exercises.find(ex => ex.id === id)
 
   if (!exercise) {
@@ -101,9 +104,25 @@ router.post('/:id/check', async (req, res) => {
     return res.status(404).json(response)
   }
 
+  if (!sessionId) {
+    const response: APIResponse = {
+      success: false,
+      error: 'Session ID required for exercise validation'
+    }
+    return res.status(400).json(response)
+  }
+
+  const credentials = getStoredCredentials(sessionId)
+  if (!credentials) {
+    const response: APIResponse = {
+      success: false,
+      error: 'Valid AWS credentials required. Please validate credentials first.'
+    }
+    return res.status(401).json(response)
+  }
+
   try {
-    // Simulate exercise checking
-    const result = await checkExercise(exercise)
+    const result = await checkExercise(exercise, credentials)
     
     const response: APIResponse<ExerciseResult> = {
       success: true,
@@ -119,8 +138,31 @@ router.post('/:id/check', async (req, res) => {
   }
 })
 
-// Simulate exercise checking logic
-async function checkExercise(exercise: Exercise): Promise<ExerciseResult> {
+// Exercise checking logic - now with real AWS validation
+async function checkExercise(exercise: Exercise, credentials: any): Promise<ExerciseResult> {
+  switch (exercise.id) {
+    case 's3-data-bucket':
+      return await validateS3DataBucket(credentials)
+    
+    // TODO: Implement other exercises
+    case 's3-web-bucket':
+    case 'vpc-architecture':
+    case 'route-tables':
+    case 'security-groups':
+    case 'rds-protection':
+    case 'load-balancer':
+    case 'launch-template':
+    case 'auto-scaling':
+      // Simulate for now
+      return simulateExerciseCheck(exercise)
+    
+    default:
+      throw new Error(`Unknown exercise: ${exercise.id}`)
+  }
+}
+
+// Simulate exercise checking logic for unimplemented exercises
+async function simulateExerciseCheck(exercise: Exercise): Promise<ExerciseResult> {
   // Simulate async checking with random delay
   await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
   
@@ -128,11 +170,14 @@ async function checkExercise(exercise: Exercise): Promise<ExerciseResult> {
   const passed = Math.random() > 0.3
   
   const messages = {
-    'iam-policies': passed ? 'All IAM policies follow least privilege principle' : 'Found overly permissive IAM policies',
-    's3-bucket-security': passed ? 'All S3 buckets are properly secured' : 'Found publicly accessible S3 buckets',
-    'ec2-security-groups': passed ? 'Security groups are properly configured' : 'Found security groups with overly permissive rules',
-    'rds-security': passed ? 'RDS instances are properly secured' : 'Found RDS security issues',
-    'vpc-security': passed ? 'VPC network configuration is secure' : 'Found VPC network security issues'
+    's3-web-bucket': passed ? 'Web bucket properly configured with static hosting' : 'Web bucket configuration issues found',
+    'vpc-architecture': passed ? 'VPC architecture meets security requirements' : 'VPC architecture security issues found',
+    'route-tables': passed ? 'Route tables properly configured for traffic control' : 'Route table configuration issues found',
+    'security-groups': passed ? 'Security groups properly implement microsegmentation' : 'Security group configuration issues found',
+    'rds-protection': passed ? 'RDS database properly protected in internal subnet' : 'RDS protection issues found',
+    'load-balancer': passed ? 'Load balancer properly configured' : 'Load balancer configuration issues found',
+    'launch-template': passed ? 'Launch template properly secured with IAM role' : 'Launch template security issues found',
+    'auto-scaling': passed ? 'Auto Scaling Group properly configured' : 'Auto Scaling Group configuration issues found'
   }
 
   return {
@@ -141,7 +186,8 @@ async function checkExercise(exercise: Exercise): Promise<ExerciseResult> {
     message: messages[exercise.id as keyof typeof messages] || 'Check completed',
     details: {
       timestamp: new Date().toISOString(),
-      checkFunction: exercise.checkFunction
+      checkFunction: exercise.checkFunction,
+      note: 'This exercise uses simulated validation - real implementation coming soon'
     }
   }
 }

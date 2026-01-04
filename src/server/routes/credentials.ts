@@ -5,6 +5,19 @@ import type { AWSCredentials, AWSAccountInfo, APIResponse, CredentialsValidation
 
 const router = Router()
 
+// Simple in-memory credential store (in production, use secure storage)
+const credentialStore = new Map<string, AWSCredentials>()
+
+// Generate a simple session ID (in production, use proper session management)
+function generateSessionId(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+}
+
+// Get stored credentials by session ID
+export function getStoredCredentials(sessionId: string): AWSCredentials | null {
+  return credentialStore.get(sessionId) || null
+}
+
 // Parse AWS credentials from INI format
 function parseCredentialsFromINI(iniContent: string): AWSCredentials | null {
   try {
@@ -14,19 +27,19 @@ function parseCredentialsFromINI(iniContent: string): AWSCredentials | null {
     for (const line of lines) {
       const trimmedLine = line.trim()
       if (trimmedLine.startsWith('aws_access_key_id=')) {
-        credentials.accessKeyId = trimmedLine.replace('aws_access_key_id=', '')
+        credentials.aws_access_key_id = trimmedLine.replace('aws_access_key_id=', '')
       } else if (trimmedLine.startsWith('aws_secret_access_key=')) {
-        credentials.secretAccessKey = trimmedLine.replace('aws_secret_access_key=', '')
+        credentials.aws_secret_access_key = trimmedLine.replace('aws_secret_access_key=', '')
       } else if (trimmedLine.startsWith('aws_session_token=')) {
-        credentials.sessionToken = trimmedLine.replace('aws_session_token=', '')
+        credentials.aws_session_token = trimmedLine.replace('aws_session_token=', '')
       }
     }
     
-    if (credentials.accessKeyId && credentials.secretAccessKey) {
+    if (credentials.aws_access_key_id && credentials.aws_secret_access_key) {
       return {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken: credentials.sessionToken,
+        aws_access_key_id: credentials.aws_access_key_id,
+        aws_secret_access_key: credentials.aws_secret_access_key,
+        aws_session_token: credentials.aws_session_token,
         region: 'us-east-1' // Default to workshop requirement
       }
     }
@@ -44,9 +57,9 @@ async function validateCredentials(credentials: AWSCredentials): Promise<Credent
     const stsClient = new STSClient({
       region: credentials.region || 'us-east-1',
       credentials: {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken: credentials.sessionToken
+        accessKeyId: credentials.aws_access_key_id,
+        secretAccessKey: credentials.aws_secret_access_key,
+        sessionToken: credentials.aws_session_token
       }
     })
 
@@ -73,9 +86,9 @@ async function validateCredentials(credentials: AWSCredentials): Promise<Credent
         const iamClient = new IAMClient({
           region: credentials.region || 'us-east-1',
           credentials: {
-            accessKeyId: credentials.accessKeyId,
-            secretAccessKey: credentials.secretAccessKey,
-            sessionToken: credentials.sessionToken
+            accessKeyId: credentials.aws_access_key_id,
+            secretAccessKey: credentials.aws_secret_access_key,
+            sessionToken: credentials.aws_session_token
           }
         })
         
@@ -130,9 +143,19 @@ router.post('/validate', async (req, res) => {
     // Validate credentials with AWS
     const validationResult = await validateCredentials(credentials)
 
-    const response: APIResponse<CredentialsValidationResult> = {
+    // If valid, store credentials with session ID
+    let sessionId: string | undefined
+    if (validationResult.isValid) {
+      sessionId = generateSessionId()
+      credentialStore.set(sessionId, credentials)
+    }
+
+    const response: APIResponse<CredentialsValidationResult & { sessionId?: string }> = {
       success: true,
-      data: validationResult
+      data: {
+        ...validationResult,
+        sessionId
+      }
     }
     
     res.json(response)
