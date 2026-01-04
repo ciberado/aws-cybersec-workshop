@@ -1,0 +1,41 @@
+{
+  "name": "aws-cybersec-workshop",
+  "version": "1.0.0",
+  "description": "AWS Cybersecurity Workshop Application",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:client": "vite",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ec2": "^3.962.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "^3.962.0",
+    "@aws-sdk/client-iam": "^3.962.0",
+    "@aws-sdk/client-rds": "^3.962.0",
+    "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/client-sts": "^3.962.0",
+    "@mantine/core": "^7.5.0",
+    "@mantine/hooks": "^7.5.0",
+    "@tabler/icons-react": "^2.46.0",
+    "express": "^4.18.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.6",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11"
+  }
+}
