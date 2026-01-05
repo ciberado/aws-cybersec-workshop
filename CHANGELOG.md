@@ -2,6 +2,35 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.3.0] - 2026-01-05 - Security Groups Validation with Enhanced Details
+
+### ✨ Added
+- **Security Groups Microsegmentation Validation**: Complete implementation of Exercise 5
+  - Real AWS API integration for validating albsg, appsg, and bdsg security groups
+  - Comprehensive rule checking including protocol, port, and source validation
+  - Detection of improper IP range access and unauthorized security group references
+  - Enhanced error reporting with specific configuration recommendations
+- **Enhanced UI Details Feature**: Advanced "Show Details" functionality for security groups
+  - Individual test conditions for each security group (albsg, appsg, bdsg)
+  - Microsegmentation chain analysis (Internet → ALB → App → Database)
+  - Progressive disclosure with pass/fail indicators for each validation step
+  - Detailed rule comparison (expected vs actual configurations)
+- **Defense-in-Depth Analysis**: Comprehensive security posture evaluation
+  - Validates proper tier isolation and access controls
+  - Identifies security violations and misconfigured access patterns
+  - Provides educational feedback on AWS security best practices
+
+### 🔧 Technical
+- Created `securityValidators.ts` with full microsegmentation validation logic
+- Implemented TestCondition-based result structure for enhanced UI integration
+- Added comprehensive error handling for VPC discovery and API failures
+- Enhanced validation functions with detailed rule analysis and security recommendations
+
+### 📊 Progress
+- **5/9 Exercises Complete**: S3 Security (2), VPC Architecture (1), Route Tables (1), Security Groups (1)
+- All implemented exercises now feature comprehensive "Show Details" functionality
+- Real AWS integration ensures accurate validation of security configurations
+
 ## [1.2.1] - 2026-01-05 - Internet Gateway Validation Fixes
 
 ### 🐛 Fixed
