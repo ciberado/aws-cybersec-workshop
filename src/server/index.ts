@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const app = express()
-const PORT = process.env.PORT || 3002
+const PORT = parseInt(process.env.PORT || '3002', 10)
 const HOST = process.env.HOST || '0.0.0.0'
 
 // Trust proxy for load balancer

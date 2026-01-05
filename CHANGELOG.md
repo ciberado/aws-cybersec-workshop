@@ -2,6 +2,27 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [2.1.0] - 2026-01-05 - Docker Support & Production Ready
+
+### ✨ Added
+- **🐳 Docker Support** - Complete containerization with multistage Dockerfile
+- **📦 Docker Compose** - Container orchestration with volume mapping for data persistence
+- **⚙️ Environment Configuration** - .env-example template for deployment settings
+- **🌐 Load Balancer Ready** - Server configured for external connections and proxy trust
+- **💾 Data Persistence** - Volume mounting for evaluation results storage
+
+### 🔧 Fixed
+- **📁 File Permissions** - Resolved Docker container permission issues for CSV writing
+- **🔨 TypeScript Compilation** - Fixed PORT type conversion and removed unused functions
+- **🩺 Health Checks** - Improved container monitoring with wget-based checks
+
+### 🏗️ Infrastructure
+- Multistage build for optimized production images (Node.js 20 Alpine)
+- Security best practices with non-root user execution
+- .dockerignore for optimized build context
+- Docker convenience scripts in package.json
+- Ready for deployment behind load balancers (sec-eval.aprender.cloud)
+
 ## [2.0.0] - 2026-01-05 - Evaluation Submission & CSV Recording
 
 ### Added

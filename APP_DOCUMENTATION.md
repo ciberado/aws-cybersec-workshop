@@ -1,6 +1,6 @@
 # AWS Cybersecurity Workshop Application
 
-A TypeScript full-stack application for validating AWS cybersecurity configurations. This application provides a web interface to check various AWS security exercises from the original workshop with **real AWS integration**.
+A TypeScript full-stack application for validating AWS cybersecurity configurations with **Docker containerization support**. This application provides a web interface to check various AWS security exercises from the original workshop with **real AWS integration**.
 
 ## Features
 

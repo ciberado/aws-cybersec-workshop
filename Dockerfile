@@ -38,8 +38,14 @@ COPY --from=build --chown=nodejs:nodejs /app/dist ./dist
 # Copy any static files that might be needed
 COPY --from=build --chown=nodejs:nodejs /app/workshop ./workshop
 
+# Create data directory with proper permissions for volume mounting
+RUN mkdir -p /app/data && chown -R nodejs:nodejs /app/data && chmod 755 /app/data
+
 # Switch to non-root user
 USER nodejs
+
+# Create a volume mount point
+VOLUME ["/app/data"]
 
 # Expose the port the app runs on
 EXPOSE 3002

@@ -5,7 +5,7 @@ import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, val
 import { getStoredCredentials, getStoredStudentInfo } from './credentials.js';
 const router = Router();
 // CSV file for storing evaluation results
-const CSV_FILE_PATH = join(process.cwd(), 'evaluation_results.csv');
+const CSV_FILE_PATH = join(process.cwd(), 'data', 'evaluation_results.csv');
 const CSV_HEADERS = 'timestamp,student_surnames,student_name,aws_account_id,aws_region,total_score,max_score,percentage,exercise_results\n';
 // Simple mutex for file access (in production, use proper locking mechanism)
 let isWritingCsv = false;
@@ -13,6 +13,10 @@ const csvWriteQueue = [];
 // Ensure CSV file exists with headers
 async function ensureCsvFile() {
     try {
+        // Ensure data directory exists
+        const dataDir = join(process.cwd(), 'data');
+        await fs.mkdir(dataDir, { recursive: true });
+        // Check if CSV file exists
         await fs.access(CSV_FILE_PATH);
     }
     catch {
@@ -53,14 +57,14 @@ async function writeToCsv(data) {
         }
     });
 }
-// Format exercise results as JSON string for CSV
-function formatExerciseResults(exercises) {
-    const results = exercises.map(ex => ({
+// Format actual exercise results from frontend submission
+function formatActualExerciseResults(submittedExercises) {
+    const results = submittedExercises.map(ex => ({
         id: ex.id,
         title: ex.title,
-        status: 'pending', // Default status since we don't track state server-side yet
+        status: ex.status,
         points: ex.points,
-        passed: false
+        passed: ex.status === 'passed'
     }));
     return JSON.stringify(results).replace(/"/g, '""'); // Escape quotes for CSV
 }
@@ -150,7 +154,7 @@ router.get('/', (_req, res) => {
 // POST /api/exercises/submit - Submit evaluation results
 router.post('/submit', async (req, res) => {
     try {
-        const { sessionId } = req.body;
+        const { sessionId, exercises: submittedExercises, accountInfo } = req.body;
         if (!sessionId) {
             const response = {
                 success: false,
@@ -158,9 +162,16 @@ router.post('/submit', async (req, res) => {
             };
             return res.status(400).json(response);
         }
-        // Get stored credentials and student info
-        const credentials = getStoredCredentials(sessionId);
+        if (!Array.isArray(submittedExercises)) {
+            const response = {
+                success: false,
+                error: 'Exercise results are required'
+            };
+            return res.status(400).json(response);
+        }
+        // Get stored student info
         const studentInfo = getStoredStudentInfo(sessionId);
+        const credentials = getStoredCredentials(sessionId);
         if (!credentials || !studentInfo) {
             const response = {
                 success: false,
@@ -168,19 +179,30 @@ router.post('/submit', async (req, res) => {
             };
             return res.status(404).json(response);
         }
-        // Calculate basic scores (simplified version for demo)
-        const maxScore = exercises.reduce((sum, ex) => sum + ex.points, 0);
+        // Calculate actual scores from submitted exercise states
+        const passedExercises = submittedExercises.filter((ex) => ex.status === 'passed');
+        const totalScore = passedExercises.reduce((sum, ex) => sum + (ex.points || 0), 0);
+        const maxScore = submittedExercises.reduce((sum, ex) => sum + (ex.points || 0), 0);
+        const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
         const timestamp = new Date().toISOString();
-        const exerciseResultsJson = formatExerciseResults(exercises);
-        // Create CSV row with current submission
-        const csvRow = `"${timestamp}","${studentInfo.surnames}","${studentInfo.name}","evaluation-session","${credentials.region || 'us-east-1'}","0","${maxScore}","0","${exerciseResultsJson}"\n`;
+        const exerciseResultsJson = formatActualExerciseResults(submittedExercises);
+        // Use actual AWS account ID from account info
+        const awsAccountId = accountInfo?.accountId || 'unknown';
+        const awsRegion = accountInfo?.region || credentials.region || 'us-east-1';
+        // Create CSV row with actual results
+        const csvRow = `"${timestamp}","${studentInfo.surnames}","${studentInfo.name}","${awsAccountId}","${awsRegion}","${totalScore}","${maxScore}","${percentage}","${exerciseResultsJson}"\n`;
         await writeToCsv(csvRow);
         const response = {
             success: true,
             data: {
                 message: 'Evaluation submitted successfully',
                 timestamp,
-                submissionId: `${sessionId}-${Date.now()}`
+                submissionId: `${sessionId}-${Date.now()}`,
+                score: {
+                    total: totalScore,
+                    max: maxScore,
+                    percentage: percentage
+                }
             }
         };
         res.json(response);

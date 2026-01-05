@@ -9,8 +9,9 @@ services:
       - NODE_ENV=production
       - PORT=3002
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data:rw
     restart: unless-stopped
+    user: "1001:1001"  # Use nodejs user
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
       interval: 30s

@@ -17,6 +17,30 @@ Una aplicación web completa para la validación y evaluación de configuracione
 - **Backend**: Express.js + Node.js + TypeScript  
 - **Cloud**: AWS SDK v3 (STS, IAM, S3, EC2, RDS, ELB)
 - **Desarrollo**: Vite + Concurrently para desarrollo paralelo
+- **🐳 Contenedores**: Docker + Docker Compose para despliegue
+
+## 🚀 Despliegue con Docker
+
+### Usando Docker Compose (Recomendado)
+```bash
+# Crear archivo de configuración
+cp .env-example .env
+
+# Iniciar la aplicación
+npm run docker:up
+```
+
+### Usando Docker directamente
+```bash
+# Construir imagen
+docker build -t aws-cybersec-workshop .
+
+# Ejecutar con persistencia de datos
+docker run --user $(id -u):$(id -g) -p 3002:3002 \
+  -v $(pwd)/data:/app/data aws-cybersec-workshop
+```
+
+**Acceder a la aplicación:** http://localhost:3002
 
 ## 📚 Estructura del Proyecto
 

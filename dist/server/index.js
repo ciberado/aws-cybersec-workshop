@@ -6,7 +6,10 @@ import credentialsRoutes from './routes/credentials.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = parseInt(process.env.PORT || '3002', 10);
+const HOST = process.env.HOST || '0.0.0.0';
+// Trust proxy for load balancer
+app.set('trust proxy', true);
 // Middleware
 app.use(express.json());
 app.use(express.static(join(__dirname, '../client')));
@@ -21,8 +24,9 @@ app.get('/api/health', (_req, res) => {
 app.get('*', (_req, res) => {
     res.sendFile(join(__dirname, '../client/index.html'));
 });
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📚 API docs available at http://localhost:${PORT}/api/health`);
+app.listen(PORT, HOST, () => {
+    console.log(`🚀 Server running on http://${HOST}:${PORT}`);
+    console.log(`📚 API docs available at http://${HOST}:${PORT}/api/health`);
+    console.log(`🌐 Ready for external connections`);
 });
 export default app;

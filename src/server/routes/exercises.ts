@@ -62,17 +62,6 @@ async function writeToCsv(data: string) {
   })
 }
 
-// Format exercise results as JSON string for CSV
-function formatExerciseResults(exercises: Exercise[]): string {
-  const results = exercises.map(ex => ({
-    id: ex.id,
-    title: ex.title,
-    status: 'pending', // Default status since we don't track state server-side yet
-    points: ex.points,
-    passed: false
-  }))
-  return JSON.stringify(results).replace(/"/g, '""') // Escape quotes for CSV
-}
 
 // Format actual exercise results from frontend submission
 function formatActualExerciseResults(submittedExercises: any[]): string {
