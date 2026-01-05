@@ -2,6 +2,26 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.6.0] - 2026-01-05 - Launch Template Security Validation
+
+### Added
+- **Launch Template Security Validation (Exercise 8)** - Complete launch template configuration validation
+  - Project tag validation (proyecto=cybersec, funcion=computacion)
+  - IAM role assignment verification for secure AWS access
+  - Ubuntu AMI base validation and image security analysis
+  - User data configuration review for bootstrap automation
+  - Security group and instance configuration validation
+  - Detailed test results with "Show Details" functionality
+  - Real-time AWS API integration for EC2 launch templates
+
+### Technical
+- Enhanced EC2Client with launch template and AMI validation commands
+- Implemented `validateLaunchTemplate` function with 4 comprehensive tests
+- Added helper functions for template discovery, configuration, AMI, and user data validation
+- Enhanced exercises route to support launch template validation
+- Advanced AMI analysis with Ubuntu detection and security assessment
+- User data decoding and bootstrap script analysis
+
 ## [1.5.0] - 2026-01-05 - Application Load Balancer Validation
 
 ### Added

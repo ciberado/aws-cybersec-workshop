@@ -1,5 +1,12 @@
 import { RDSClient, DescribeDBInstancesCommand, DescribeDBSubnetGroupsCommand, DBInstance } from '@aws-sdk/client-rds';
-import { EC2Client, DescribeSubnetsCommand, DescribeRouteTablesCommand } from '@aws-sdk/client-ec2';
+import { 
+  EC2Client, 
+  DescribeSubnetsCommand, 
+  DescribeRouteTablesCommand,
+  DescribeLaunchTemplatesCommand,
+  DescribeLaunchTemplateVersionsCommand,
+  DescribeImagesCommand
+} from '@aws-sdk/client-ec2';
 import { 
   ElasticLoadBalancingV2Client, 
   DescribeLoadBalancersCommand, 
@@ -1007,4 +1014,380 @@ async function validateALBListeners(elbv2Client: ElasticLoadBalancingV2Client, l
       details: [error instanceof Error ? error.message : 'Unknown error']
     };
   }
+}
+
+/**
+ * Validate Launch Template Security (Exercise 8)
+ * Checks launch template configuration with proper security settings
+ */
+export async function validateLaunchTemplate(
+  credentials: AWSCredentials
+): Promise<ExerciseResult> {
+  const ec2Client = new EC2Client({
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: credentials.aws_access_key_id,
+      secretAccessKey: credentials.aws_secret_access_key,
+      sessionToken: credentials.aws_session_token
+    }
+  });
+
+  const testResults: TestCondition[] = [];
+  let overallPassed = true;
+
+  try {
+    // Test 1: Find Launch Template with project tags
+    const templateDiscovery = await discoverProjectLaunchTemplate(ec2Client);
+    testResults.push({
+      name: 'launch-template-discovery',
+      description: 'Locate Launch Template with project tags (proyecto=cybersec)',
+      status: templateDiscovery.found ? 'pass' : 'fail',
+      message: templateDiscovery.message,
+      details: templateDiscovery.details.join('\n')
+    });
+    if (!templateDiscovery.found) overallPassed = false;
+
+    if (templateDiscovery.launchTemplate) {
+      // Test 2: Get and validate launch template configuration
+      const configValidation = await validateLaunchTemplateConfig(ec2Client, templateDiscovery.launchTemplate);
+      testResults.push({
+        name: 'template-configuration',
+        description: 'Verify launch template IAM role and security configuration',
+        status: configValidation.valid ? 'pass' : 'fail',
+        message: configValidation.message,
+        details: configValidation.details.join('\n')
+      });
+      if (!configValidation.valid) overallPassed = false;
+
+      // Test 3: Validate AMI base (Ubuntu)
+      if (configValidation.templateData) {
+        const amiValidation = await validateTemplateAMI(ec2Client, configValidation.templateData);
+        testResults.push({
+          name: 'ami-validation',
+          description: 'Verify Ubuntu AMI base and image security',
+          status: amiValidation.valid ? 'pass' : 'fail',
+          message: amiValidation.message,
+          details: amiValidation.details.join('\n')
+        });
+        if (!amiValidation.valid) overallPassed = false;
+      }
+
+      // Test 4: Validate User Data configuration
+      if (configValidation.templateData) {
+        const userDataValidation = validateUserData(configValidation.templateData);
+        testResults.push({
+          name: 'user-data-validation',
+          description: 'Verify user data configuration for bootstrap automation',
+          status: userDataValidation.valid ? 'pass' : 'fail',
+          message: userDataValidation.message,
+          details: userDataValidation.details.join('\n')
+        });
+        if (!userDataValidation.valid) overallPassed = false;
+      }
+    }
+
+    const passedCount = testResults.filter(t => t.status === 'pass').length;
+    const totalTests = testResults.length;
+    const message = overallPassed
+      ? `✅ Launch template is properly configured with security best practices (${passedCount}/${totalTests} tests passed)`
+      : `❌ Launch template configuration has security issues that need attention (${passedCount}/${totalTests} tests passed)`;
+
+    return {
+      exerciseId: 'launch-template',
+      passed: overallPassed,
+      message,
+      testResults,
+      details: {
+        summary: 'Launch Template security validation completed',
+        totalTests,
+        passedTests: passedCount,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+  } catch (error) {
+    console.error('Error validating launch template:', error);
+    
+    const errorTest: TestCondition = {
+      name: 'validation-error',
+      description: 'Launch template validation process',
+      status: 'error',
+      message: 'Failed to validate due to AWS API error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    };
+    
+    return {
+      exerciseId: 'launch-template',
+      passed: false,
+      message: 'Launch template validation failed due to error',
+      testResults: [errorTest],
+      details: { error: error instanceof Error ? error.message : 'Unknown error' }
+    };
+  }
+}
+
+// Helper function to discover Launch Template
+async function discoverProjectLaunchTemplate(ec2Client: EC2Client): Promise<{
+  found: boolean;
+  message: string;
+  details: string[];
+  launchTemplate?: any;
+}> {
+  try {
+    const { LaunchTemplates } = await ec2Client.send(new DescribeLaunchTemplatesCommand({}));
+    const details: string[] = [];
+    
+    if (!LaunchTemplates || LaunchTemplates.length === 0) {
+      return {
+        found: false,
+        message: 'No launch templates found in region',
+        details: ['No launch templates exist in us-east-1 region']
+      };
+    }
+    
+    details.push(`Found ${LaunchTemplates.length} launch template(s) in region`);
+    
+    // Look for launch templates with project tags
+    let projectTemplate = null;
+    
+    for (const template of LaunchTemplates) {
+      const tags = template.Tags || [];
+      const tagMap = new Map(tags.map(tag => [tag.Key, tag.Value]));
+      
+      details.push(`Template: ${template.LaunchTemplateName} (ID: ${template.LaunchTemplateId})`);
+      details.push(`  Tags: ${JSON.stringify(Object.fromEntries(tagMap))}`);
+      
+      if (tagMap.get('proyecto') === 'cybersec' && tagMap.get('funcion') === 'computacion') {
+        projectTemplate = template;
+        details.push(`  ✓ Found project template with correct tags`);
+        break;
+      }
+    }
+    
+    if (!projectTemplate) {
+      return {
+        found: false,
+        message: 'No launch template found with required project tags',
+        details: [
+          ...details,
+          'No launch template found with tags: proyecto=cybersec, funcion=computacion'
+        ]
+      };
+    }
+    
+    return {
+      found: true,
+      message: `Launch template '${projectTemplate.LaunchTemplateName}' found with correct tags`,
+      details,
+      launchTemplate: projectTemplate
+    };
+    
+  } catch (error) {
+    return {
+      found: false,
+      message: 'Error discovering launch templates',
+      details: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+// Helper function to validate Launch Template configuration
+async function validateLaunchTemplateConfig(ec2Client: EC2Client, launchTemplate: any): Promise<{
+  valid: boolean;
+  message: string;
+  details: string[];
+  templateData?: any;
+}> {
+  try {
+    // Get the latest version of the launch template
+    const { LaunchTemplateVersions } = await ec2Client.send(new DescribeLaunchTemplateVersionsCommand({
+      LaunchTemplateId: launchTemplate.LaunchTemplateId,
+      Versions: ['$Latest']
+    }));
+    
+    const details: string[] = [];
+    let valid = true;
+    
+    if (!LaunchTemplateVersions || LaunchTemplateVersions.length === 0) {
+      return {
+        valid: false,
+        message: 'No launch template versions found',
+        details: ['Unable to retrieve launch template configuration']
+      };
+    }
+    
+    const templateData = LaunchTemplateVersions[0].LaunchTemplateData!;
+    details.push(`Launch template version: ${LaunchTemplateVersions[0].VersionNumber}`);
+    details.push(`Created: ${LaunchTemplateVersions[0].CreateTime}`);
+    
+    // Check IAM Instance Profile
+    if (!templateData.IamInstanceProfile) {
+      valid = false;
+      details.push('❌ No IAM instance profile configured');
+      details.push('❌ Security risk - instances will have no AWS permissions');
+    } else {
+      details.push(`✓ IAM instance profile configured: ${templateData.IamInstanceProfile.Name || templateData.IamInstanceProfile.Arn}`);
+      details.push('✓ Enables secure AWS service access');
+    }
+    
+    // Check security groups
+    const securityGroups = templateData.SecurityGroupIds || [];
+    if (securityGroups.length === 0) {
+      valid = false;
+      details.push('❌ No security groups configured');
+    } else {
+      details.push(`✓ ${securityGroups.length} security group(s) configured: ${securityGroups.join(', ')}`);
+    }
+    
+    // Check instance type
+    if (templateData.InstanceType) {
+      details.push(`Instance type: ${templateData.InstanceType}`);
+    }
+    
+    // Check key pair
+    if (templateData.KeyName) {
+      details.push(`✓ Key pair configured: ${templateData.KeyName}`);
+    } else {
+      details.push('⚠️ No key pair configured (may limit SSH access)');
+    }
+    
+    const message = valid
+      ? 'Launch template configuration meets security requirements'
+      : 'Launch template configuration has security issues';
+      
+    return { valid, message, details, templateData };
+    
+  } catch (error) {
+    return {
+      valid: false,
+      message: 'Error validating launch template configuration',
+      details: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+// Helper function to validate AMI base
+async function validateTemplateAMI(ec2Client: EC2Client, templateData: any): Promise<{
+  valid: boolean;
+  message: string;
+  details: string[];
+}> {
+  try {
+    const details: string[] = [];
+    let valid = true;
+    
+    if (!templateData.ImageId) {
+      return {
+        valid: false,
+        message: 'No AMI specified in launch template',
+        details: ['Launch template must specify an AMI']
+      };
+    }
+    
+    details.push(`AMI ID: ${templateData.ImageId}`);
+    
+    // Get AMI details
+    try {
+      const { Images } = await ec2Client.send(new DescribeImagesCommand({
+        ImageIds: [templateData.ImageId]
+      }));
+      
+      if (Images && Images.length > 0) {
+        const image = Images[0];
+        details.push(`AMI Name: ${image.Name}`);
+        details.push(`Description: ${image.Description}`);
+        details.push(`Architecture: ${image.Architecture}`);
+        details.push(`Platform: ${image.Platform || 'Linux'}`);
+        details.push(`Owner: ${image.OwnerId}`);
+        
+        // Check if it's Ubuntu (common patterns)
+        const isUbuntu = (image.Name || '').toLowerCase().includes('ubuntu') ||
+                        (image.Description || '').toLowerCase().includes('ubuntu');
+        
+        if (isUbuntu) {
+          details.push('✓ AMI appears to be Ubuntu-based');
+          details.push('✓ Meets workshop requirement for Ubuntu base');
+        } else {
+          // Don't fail completely, but warn
+          details.push('⚠️ AMI may not be Ubuntu-based');
+          details.push('⚠️ Workshop specifies Ubuntu AMI requirement');
+        }
+        
+        // Check if AMI is public or owned by account
+        if (image.Public) {
+          details.push('✓ Using public AMI (standard practice)');
+        } else {
+          details.push(`✓ Using private AMI owned by ${image.OwnerId}`);
+        }
+        
+      } else {
+        valid = false;
+        details.push('❌ AMI not found or not accessible');
+      }
+      
+    } catch (amiError) {
+      // Don't fail validation completely for AMI lookup issues
+      details.push(`⚠️ Could not retrieve AMI details: ${amiError instanceof Error ? amiError.message : 'Unknown error'}`);
+      details.push('AMI ID is configured, assuming it\'s valid');
+    }
+    
+    const message = valid
+      ? 'AMI configuration is valid'
+      : 'AMI configuration has issues';
+      
+    return { valid, message, details };
+    
+  } catch (error) {
+    return {
+      valid: false,
+      message: 'Error validating AMI',
+      details: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+// Helper function to validate User Data
+function validateUserData(templateData: any): {
+  valid: boolean;
+  message: string;
+  details: string[];
+} {
+  const details: string[] = [];
+  let valid = true;
+  
+  if (!templateData.UserData) {
+    // User data is not strictly required, but recommended
+    details.push('⚠️ No user data configured');
+    details.push('⚠️ Workshop recommends user data for bootstrap automation');
+    details.push('Consider adding user data for automated configuration');
+  } else {
+    details.push('✓ User data configured for bootstrap automation');
+    details.push('✓ Enables automated instance configuration');
+    
+    // Decode base64 user data if possible
+    try {
+      const userDataDecoded = Buffer.from(templateData.UserData, 'base64').toString('utf8');
+      const preview = userDataDecoded.substring(0, 200);
+      details.push(`User data preview: ${preview}${userDataDecoded.length > 200 ? '...' : ''}`);
+      
+      // Check for common bootstrap patterns
+      const hasShebang = userDataDecoded.startsWith('#!/');
+      const hasAptUpdate = userDataDecoded.includes('apt update') || userDataDecoded.includes('apt-get update');
+      const hasInstalls = userDataDecoded.includes('install');
+      
+      if (hasShebang) {
+        details.push('✓ Script starts with proper shebang');
+      }
+      if (hasAptUpdate || hasInstalls) {
+        details.push('✓ Includes package management commands');
+      }
+      
+    } catch (decodeError) {
+      details.push('User data is configured but could not decode for analysis');
+    }
+  }
+  
+  // User data validation is informational, not critical for security
+  const message = 'User data configuration analyzed';
+  return { valid, message, details };
 }

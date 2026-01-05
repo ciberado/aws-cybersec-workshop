@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import type { Exercise, ExerciseResult, APIResponse } from '../../shared/types.js'
-import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration } from '../validators/index.js'
+import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration, validateLaunchTemplate } from '../validators/index.js'
 import { getStoredCredentials } from './credentials.js'
 
 const router = Router()
@@ -158,8 +158,10 @@ async function checkExercise(exercise: Exercise, credentials: any): Promise<Exer
     case 'load-balancer':
       return await validateALBConfiguration(credentials)
     
-    // TODO: Implement remaining exercises
     case 'launch-template':
+      return await validateLaunchTemplate(credentials)
+    
+    // TODO: Implement remaining exercises
     case 'auto-scaling':
       // Simulate for now
       return simulateExerciseCheck(exercise)

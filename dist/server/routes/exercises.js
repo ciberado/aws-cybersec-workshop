@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration } from '../validators/index.js';
+import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration, validateLaunchTemplate } from '../validators/index.js';
 import { getStoredCredentials } from './credentials.js';
 const router = Router();
 // Workshop exercises based on the README requirements
@@ -141,8 +141,9 @@ async function checkExercise(exercise, credentials) {
             return await validateRDSProtection(credentials);
         case 'load-balancer':
             return await validateALBConfiguration(credentials);
-        // TODO: Implement remaining exercises
         case 'launch-template':
+            return await validateLaunchTemplate(credentials);
+        // TODO: Implement remaining exercises
         case 'auto-scaling':
             // Simulate for now
             return simulateExerciseCheck(exercise);
