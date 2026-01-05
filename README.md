@@ -42,6 +42,26 @@ docker run --user $(id -u):$(id -g) -p 3002:3002 \
 
 **Acceder a la aplicación:** http://localhost:3002
 
+### 🔧 Resolución de Problemas de Permisos
+
+Si encuentra errores de permisos al escribir archivos CSV:
+
+```bash
+# Verificar permisos del directorio de datos
+ls -la ./data
+
+# Ajustar permisos para el contenedor (UID 1000)
+sudo chown -R 1000:1000 ./data
+
+# Reiniciar el contenedor
+docker-compose down && docker-compose up -d
+```
+
+**Verificar que funciona:**
+```bash
+docker-compose exec app touch /app/data/test.txt
+```
+
 ## 📚 Estructura del Proyecto
 
 ```

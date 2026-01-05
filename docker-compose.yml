@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data:/app/data:rw
     restart: unless-stopped
-    user: "1001:1001"  # Use nodejs user
+    user: "${UID:-1000}:${GID:-1000}"  # Use actual user from .env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
       interval: 30s

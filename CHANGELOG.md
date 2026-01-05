@@ -2,6 +2,18 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [2.1.1] - 2026-01-05 - Docker Permission Fixes
+
+### 🔧 Fixed
+- **📁 File Permissions**: Resolved production deployment permission issues for CSV writing
+- **🐳 Docker User Configuration**: Updated container to use flexible UID/GID from environment
+- **📚 Documentation**: Added troubleshooting guide for permission problems in production
+
+### 🛠️ Infrastructure
+- Docker Compose now uses `${UID:-1000}:${GID:-1000}` for flexible user mapping
+- Added permission verification commands for production deployment
+- Improved production deployment instructions
+
 ## [2.1.0] - 2026-01-05 - Docker Support & Production Ready
 
 ### ✨ Added
