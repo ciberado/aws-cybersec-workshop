@@ -52,14 +52,26 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   useEffect(() => {
     // Only fetch exercises if authenticated
     if (isAuthenticated) {
       fetch('/api/exercises')
         .then(res => res.json())
-        .then(data => setExercises(data))
-        .catch(err => console.error('Failed to fetch exercises:', err))
+        .then(response => {
+          if (response.success && Array.isArray(response.data)) {
+            setExercises(response.data)
+          } else {
+            console.error('Invalid exercises response:', response)
+            setExercises([])
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch exercises:', err)
+          setExercises([])
+        })
     }
   }, [isAuthenticated])
 
@@ -210,6 +222,11 @@ function App() {
 
   // Calculate current score based on passed exercises
   const calculateScore = () => {
+    // Safety check to ensure exercises is an array
+    if (!Array.isArray(exercises) || exercises.length === 0) {
+      return { current: 0, max: 0, percentage: 0 }
+    }
+    
     const passedExercises = exercises.filter(ex => ex.status === 'passed')
     const totalPoints = passedExercises.reduce((sum, ex) => sum + ex.points, 0)
     const maxPoints = exercises.reduce((sum, ex) => sum + ex.points, 0)
@@ -217,6 +234,41 @@ function App() {
   }
 
   const score = calculateScore()
+
+  const submitEvaluation = async () => {
+    if (!sessionId || !isAuthenticated || !accountInfo) {
+      setSubmissionStatus('error')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmissionStatus('idle')
+
+    try {
+      const response = await fetch('/api/exercises/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          sessionId,
+          exercises: exercises, // Send actual exercise states
+          accountInfo: accountInfo // Send actual account info
+        })
+      })
+
+      if (response.ok) {
+        setSubmissionStatus('success')
+      } else {
+        setSubmissionStatus('error')
+      }
+    } catch (error) {
+      console.error('Submission error:', error)
+      setSubmissionStatus('error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <AppShell
@@ -273,7 +325,7 @@ function App() {
                 {Math.round(score.percentage)}% Complete
               </Badge>
               
-              {isAuthenticated && (
+              {isAuthenticated && Array.isArray(exercises) && exercises.length > 0 && (
                 <div style={{ textAlign: 'center' }}>
                   <Text size="xs" c="dimmed">
                     {exercises.filter(ex => ex.status === 'passed').length} of {exercises.length} exercises passed
@@ -286,6 +338,34 @@ function App() {
                 </div>
               )}
             </Stack>
+            
+            {isAuthenticated && Array.isArray(exercises) && exercises.length > 0 && (
+              <Stack gap="sm" align="center" w="100%">
+                <Button 
+                  variant="gradient"
+                  gradient={{ from: 'blue', to: 'cyan' }}
+                  size="md"
+                  loading={isSubmitting}
+                  onClick={submitEvaluation}
+                  disabled={exercises.length === 0}
+                  fullWidth
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Evaluation'}
+                </Button>
+                
+                {submissionStatus === 'success' && (
+                  <Alert color="green" variant="light" size="sm" w="100%">
+                    <Text size="xs" ta="center">Evaluation submitted successfully!</Text>
+                  </Alert>
+                )}
+                
+                {submissionStatus === 'error' && (
+                  <Alert color="red" variant="light" size="sm" w="100%">
+                    <Text size="xs" ta="center">Failed to submit. Please try again.</Text>
+                  </Alert>
+                )}
+              </Stack>
+            )}
           </Stack>
         </Center>
       </AppShell.Navbar>
@@ -418,7 +498,7 @@ aws_session_token=YOUR_SESSION_TOKEN`}
               <Divider my="md" />
 
               <Stack>
-                {exercises.length === 0 ? (
+                {!Array.isArray(exercises) || exercises.length === 0 ? (
                   <Text>Loading exercises...</Text>
                 ) : (
                   exercises.map((exercise) => (
@@ -514,6 +594,7 @@ aws_session_token=YOUR_SESSION_TOKEN`}
                 setStudentSurnames('')
                 setCredentialsError(null)
                 setSessionId(null)
+                setSubmissionStatus('idle')
               }}>
                 Change Credentials
               </Button>

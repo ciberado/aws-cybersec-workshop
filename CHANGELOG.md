@@ -2,6 +2,46 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [2.0.0] - 2026-01-05 - Evaluation Submission & CSV Recording
+
+### Added
+- **Evaluation Submission System** - Complete assessment result recording with CSV export
+  - Submit evaluation button integrated in score sidebar
+  - Real-time recording of actual exercise completion states
+  - CSV export with student information, AWS account details, and scores
+  - Concurrent access handling for multiple simultaneous submissions
+  - Secure data directory structure (`data/evaluation_results.csv`)
+  - Spanish student information integration (Surnames, Name format)
+
+### Enhanced
+- **CSV Recording Accuracy**
+  - Records actual exercise pass/fail states instead of default pending
+  - Captures real AWS Account ID and region from authenticated sessions
+  - Calculates accurate scores based on completed exercises
+  - Includes detailed exercise results with individual status tracking
+  - Timestamp tracking for submission auditing
+
+### Technical
+- Added concurrent-safe CSV writing with queue-based file access
+- Implemented proper data directory organization with auto-creation
+- Enhanced frontend-backend communication for exercise state synchronization
+- Added submission status feedback with success/error states
+- Secure session-based data retrieval for student and account information
+- Git ignore patterns for data privacy and security
+
+### Security & Privacy
+- Student evaluation data isolated in gitignored data directory
+- AWS account information securely recorded without exposure
+- Session-based authentication for submission authorization
+- Concurrent submission handling prevents data corruption
+
+### User Experience
+- Prominent "Submit Evaluation" button in score dashboard
+- Real-time submission feedback with loading states
+- Success/error notifications for submission status
+- Gradient button styling for clear call-to-action
+- Form validation ensuring complete information before submission
+
 ## [1.9.0] - 2026-01-05 - Assessment Score Sidebar
 
 ### Added

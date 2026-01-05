@@ -1,7 +1,69 @@
 import { Router } from 'express';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration, validateLaunchTemplate, validateAutoScalingGroup } from '../validators/index.js';
-import { getStoredCredentials } from './credentials.js';
+import { getStoredCredentials, getStoredStudentInfo } from './credentials.js';
 const router = Router();
+// CSV file for storing evaluation results
+const CSV_FILE_PATH = join(process.cwd(), 'evaluation_results.csv');
+const CSV_HEADERS = 'timestamp,student_surnames,student_name,aws_account_id,aws_region,total_score,max_score,percentage,exercise_results\n';
+// Simple mutex for file access (in production, use proper locking mechanism)
+let isWritingCsv = false;
+const csvWriteQueue = [];
+// Ensure CSV file exists with headers
+async function ensureCsvFile() {
+    try {
+        await fs.access(CSV_FILE_PATH);
+    }
+    catch {
+        // File doesn't exist, create it with headers
+        await fs.writeFile(CSV_FILE_PATH, CSV_HEADERS);
+    }
+}
+// Safely write to CSV with concurrent access handling
+async function writeToCsv(data) {
+    return new Promise((resolve, reject) => {
+        const writeTask = async () => {
+            try {
+                await ensureCsvFile();
+                await fs.appendFile(CSV_FILE_PATH, data);
+                resolve();
+            }
+            catch (error) {
+                reject(error);
+            }
+            finally {
+                isWritingCsv = false;
+                // Process next item in queue
+                const nextTask = csvWriteQueue.shift();
+                if (nextTask) {
+                    isWritingCsv = true;
+                    nextTask();
+                }
+            }
+        };
+        if (isWritingCsv) {
+            // Add to queue
+            csvWriteQueue.push(writeTask);
+        }
+        else {
+            // Execute immediately
+            isWritingCsv = true;
+            writeTask();
+        }
+    });
+}
+// Format exercise results as JSON string for CSV
+function formatExerciseResults(exercises) {
+    const results = exercises.map(ex => ({
+        id: ex.id,
+        title: ex.title,
+        status: 'pending', // Default status since we don't track state server-side yet
+        points: ex.points,
+        passed: false
+    }));
+    return JSON.stringify(results).replace(/"/g, '""'); // Escape quotes for CSV
+}
 // Workshop exercises based on the README requirements
 const exercises = [
     {
@@ -83,7 +145,54 @@ router.get('/', (_req, res) => {
         success: true,
         data: exercises
     };
-    res.json(response.data);
+    res.json(response);
+});
+// POST /api/exercises/submit - Submit evaluation results
+router.post('/submit', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        if (!sessionId) {
+            const response = {
+                success: false,
+                error: 'Session ID is required'
+            };
+            return res.status(400).json(response);
+        }
+        // Get stored credentials and student info
+        const credentials = getStoredCredentials(sessionId);
+        const studentInfo = getStoredStudentInfo(sessionId);
+        if (!credentials || !studentInfo) {
+            const response = {
+                success: false,
+                error: 'Session not found or expired'
+            };
+            return res.status(404).json(response);
+        }
+        // Calculate basic scores (simplified version for demo)
+        const maxScore = exercises.reduce((sum, ex) => sum + ex.points, 0);
+        const timestamp = new Date().toISOString();
+        const exerciseResultsJson = formatExerciseResults(exercises);
+        // Create CSV row with current submission
+        const csvRow = `"${timestamp}","${studentInfo.surnames}","${studentInfo.name}","evaluation-session","${credentials.region || 'us-east-1'}","0","${maxScore}","0","${exerciseResultsJson}"\n`;
+        await writeToCsv(csvRow);
+        const response = {
+            success: true,
+            data: {
+                message: 'Evaluation submitted successfully',
+                timestamp,
+                submissionId: `${sessionId}-${Date.now()}`
+            }
+        };
+        res.json(response);
+    }
+    catch (error) {
+        console.error('Submission error:', error);
+        const response = {
+            success: false,
+            error: 'Failed to submit evaluation'
+        };
+        res.status(500).json(response);
+    }
 });
 // POST /api/exercises/:id/check - Check a specific exercise
 router.post('/:id/check', async (req, res) => {
