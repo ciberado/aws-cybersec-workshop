@@ -1010,25 +1010,24 @@ async function validateLaunchTemplateConfig(ec2Client, launchTemplate) {
             details.push(`✓ IAM instance profile configured: ${templateData.IamInstanceProfile.Name || templateData.IamInstanceProfile.Arn}`);
             details.push('✓ Enables secure AWS service access');
         }
-        // Check security groups
+        // Note: Security groups and key pairs are configured at ASG level for this workshop
         const securityGroups = templateData.SecurityGroupIds || [];
-        if (securityGroups.length === 0) {
-            valid = false;
-            details.push('❌ No security groups configured');
+        const keyName = templateData.KeyName;
+        if (securityGroups.length > 0) {
+            details.push(`ℹ️ Security groups in template: ${securityGroups.join(', ')} (ASG will override)`);
         }
         else {
-            details.push(`✓ ${securityGroups.length} security group(s) configured: ${securityGroups.join(', ')}`);
+            details.push('✓ No security groups in template (will be configured at ASG level)');
+        }
+        if (keyName) {
+            details.push(`ℹ️ Key pair in template: ${keyName} (ASG may override)`);
+        }
+        else {
+            details.push('✓ No key pair in template (will be configured at ASG level)');
         }
         // Check instance type
         if (templateData.InstanceType) {
             details.push(`Instance type: ${templateData.InstanceType}`);
-        }
-        // Check key pair
-        if (templateData.KeyName) {
-            details.push(`✓ Key pair configured: ${templateData.KeyName}`);
-        }
-        else {
-            details.push('⚠️ No key pair configured (may limit SSH access)');
         }
         const message = valid
             ? 'Launch template configuration meets security requirements'
