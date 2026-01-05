@@ -225,6 +225,168 @@ Each validator should:
 - Manual testing with real AWS resources
 - Error scenario testing (missing resources, permission errors)
 
+## Common Implementation Pitfalls & Best Practices
+
+> **Important**: Follow these patterns to avoid common issues when implementing new exercise validators.
+
+### ✅ ExerciseResult Interface Compliance
+**Problem**: Using incorrect property names in return objects
+```typescript
+// ❌ WRONG - will cause compilation errors
+return {
+  success: true,  // Property doesn't exist in ExerciseResult
+  message: "...",
+  // ...
+}
+
+// ✅ CORRECT - matches ExerciseResult interface
+return {
+  exerciseId: 'exercise-id',  // Required: string
+  passed: true,               // Required: boolean (not 'success')
+  message: "...",            // Required: string
+  testResults: [...],        // Optional: TestCondition[] (for "Show Details")
+  details: {...}             // Optional: any (additional metadata)
+}
+```
+
+### ✅ Credentials Parameter Pattern
+**Problem**: Inconsistent credential parameter handling
+```typescript
+// ❌ WRONG - extracting individual properties inconsistent with other validators
+export async function validateExample(
+  accessKey: string,
+  secretKey: string,
+  sessionToken?: string
+): Promise<ExerciseResult>
+
+// ✅ CORRECT - use AWSCredentials object like other validators
+export async function validateExample(
+  credentials: AWSCredentials
+): Promise<ExerciseResult> {
+  const ec2 = new EC2Client({
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: credentials.aws_access_key_id,      // Note: underscore format
+      secretAccessKey: credentials.aws_secret_access_key,
+      sessionToken: credentials.aws_session_token
+    }
+  });
+}
+```
+
+### ✅ "Show Details" UI Integration
+**Problem**: Details not appearing in frontend despite implementation
+```typescript
+// ❌ WRONG - frontend won't show "Show Details" button
+return {
+  exerciseId: 'example',
+  passed: true,
+  message: "Success",
+  details: {
+    summary: "Detailed information here..."  // Won't appear in UI
+  }
+}
+
+// ✅ CORRECT - use testResults for "Show Details" functionality
+return {
+  exerciseId: 'example',
+  passed: true,
+  message: "Success",
+  testResults: [                    // This enables "Show Details" button
+    {
+      name: 'test-1',
+      description: 'Test description',
+      status: 'pass' as const,      // 'pass' | 'fail' | 'error' | 'warning'
+      message: 'Test message',
+      details: 'Detailed explanation'
+    }
+  ],
+  details: {                       // Additional metadata (optional)
+    summary: "...",
+    resourceInfo: {...}
+  }
+}
+```
+
+### ✅ Import Requirements
+**Problem**: Missing required imports causing compilation errors
+```typescript
+// ✅ REQUIRED imports for exercise validators
+import { ExerciseResult, AWSCredentials, TestCondition } from '../../shared/types.js';
+import { EC2Client, /* specific commands */ } from '@aws-sdk/client-ec2';
+
+// Don't forget TestCondition if using testResults array
+```
+
+### ✅ Validator Export Consistency
+**Problem**: Inconsistent function naming between definition and export
+```typescript
+// In validator file (e.g., computeValidators.ts)
+export async function validateRDSProtection(credentials: AWSCredentials): Promise<ExerciseResult>
+
+// In validators/index.ts - MUST match exactly
+export { validateRDSProtection } from './computeValidators.js'
+
+// In exercises route - MUST match export name
+import { validateRDSProtection } from '../validators/index.js'
+```
+
+### ✅ Error Handling Pattern
+**Problem**: Inconsistent error handling and user feedback
+```typescript
+// ✅ RECOMMENDED error handling pattern
+export async function validateExample(credentials: AWSCredentials): Promise<ExerciseResult> {
+  try {
+    // AWS API calls here
+    
+    const testResults: TestCondition[] = [
+      // Individual test validations
+    ];
+    
+    return {
+      exerciseId: 'example',
+      passed: allTestsPassed,
+      message: passed ? 'Success message' : 'Failure summary',
+      testResults,
+      details: { /* additional info */ }
+    };
+    
+  } catch (error) {
+    console.error('Error validating example:', error);
+    
+    const testResults: TestCondition[] = [{
+      name: 'validation-error',
+      description: 'Example validation process',
+      status: 'error',
+      message: 'Failed to validate due to AWS API error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }];
+    
+    return {
+      exerciseId: 'example',
+      passed: false,
+      message: 'Validation failed due to error',
+      testResults,
+      details: { error: error instanceof Error ? error.message : 'Unknown error' }
+    };
+  }
+}
+```
+
+### ✅ TestCondition Best Practices
+```typescript
+// ✅ Well-structured TestCondition for clear UI display
+{
+  name: 'descriptive-test-name',           // Unique identifier
+  description: 'User-friendly test name',  // Shows in UI as test title
+  status: 'pass',                         // Determines icon/color in UI
+  message: 'Concise result summary',      // Main result message
+  details: 'Detailed explanation\nMultiline supported'  // Expandable details
+}
+```
+
+Following these patterns ensures consistent behavior, proper UI integration, and maintainable code across all exercise validators.
+
 ## Contribution Guidelines
 
 1. **Commit Messages**: Use conventional commits (feat:, fix:, docs:)
