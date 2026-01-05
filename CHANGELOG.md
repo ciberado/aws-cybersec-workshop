@@ -2,6 +2,23 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.2.1] - 2026-01-05 - Internet Gateway Validation Fixes
+
+### 🐛 Fixed
+- **Internet Gateway Validation**: Fixed attachment state validation to accept "available" as a valid state
+  - AWS returns "available" state for properly attached Internet Gateways, not just "attached"
+  - Added type casting to handle AWS API response variations
+- **NAT Gateway Route Detection**: Fixed subnet classification logic for three-tier architecture
+  - Removed unnecessary `.startsWith('nat-')` check that was preventing proper NAT Gateway route detection
+  - Improved subnet tier classification (public/private/internal) based on actual routing configuration
+- **Route Table Analysis**: Enhanced reliability of network tier validation
+  - Fixed edge cases in route analysis where valid configurations were incorrectly flagged as failures
+
+### 🔧 Technical
+- Updated `validateInternetGateway` function to handle AWS API state variations
+- Improved `classifySubnetByRoutes` function for more accurate subnet tier detection
+- Enhanced error messaging for Internet Gateway validation failures
+
 ## [1.2.0] - 2026-01-05 - S3 Web Bucket Validation Implementation
 
 ### ✨ Added

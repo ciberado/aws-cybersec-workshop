@@ -139,21 +139,23 @@ aws_session_token=YOUR_SESSION_TOKEN
 ### Phase 1: Implement Remaining AWS Validation Logic ⚡
 **Priority: High** - Convert remaining simulated checks to real AWS resource validation
 
-#### 1.1 S3 Web Bucket Validation
-- [ ] **S3 Web Bucket Check**: Validate static website hosting
-  - Check bucket website configuration
-  - Verify index.html public accessibility
-  - Ensure proper bucket policy for web hosting
+#### 1.1 S3 Validation ✅ COMPLETED
+- ✅ **S3 Data Bucket Check**: Comprehensive security validation with real AWS API
+- ✅ **S3 Web Bucket Check**: Static website hosting validation
+  - ✅ Check bucket website configuration
+  - ✅ Verify public access and bucket policy
+  - ✅ Test actual HTTP accessibility
 
-#### 1.2 VPC and Network Validation  
-- [ ] **VPC Architecture Check**: Validate CIDR design and subnet segmentation
-  - Use EC2Client to list VPCs with tags `proyecto=cybersec`
-  - Verify /16 CIDR range and three-tier subnet structure
-  - Check public/private/internal subnet configurations
-- [ ] **Route Table Validation**: Verify traffic control between tiers
-  - Validate Internet Gateway routing for public subnets
-  - Check NAT Gateway routing for private subnets  
-  - Ensure internal subnets have no internet access
+#### 1.2 VPC and Network Validation ✅ COMPLETED
+- ✅ **VPC Architecture Check**: CIDR design and subnet segmentation
+  - ✅ Use EC2Client to discover VPCs with tags `proyecto=cybersec`
+  - ✅ Verify /16 CIDR range and three-tier subnet structure
+  - ✅ Validate subnet distribution across availability zones
+- ✅ **Route Table Validation**: Traffic control between tiers
+  - ✅ Validate Internet Gateway routing for public subnets (fixed "available" state)
+  - ✅ Check NAT Gateway routing for private subnets (fixed detection logic)
+  - ✅ Ensure internal subnets have no internet access
+  - ✅ Implement three-tier subnet classification by actual routes
 
 #### 1.3 Security and Compute Validation
 - [ ] **Security Groups Check**: Validate microsegmentation rules
@@ -197,12 +199,17 @@ aws_session_token=YOUR_SESSION_TOKEN
 Create validation functions in `/src/server/validators/`:
 ```
 src/server/validators/
-├── s3Validators.ts       # S3 bucket validations
-├── vpcValidators.ts      # VPC and networking validations  
-├── securityValidators.ts # Security groups and IAM
-├── computeValidators.ts  # EC2, ALB, RDS validations
-└── index.ts             # Export all validators
+├── s3Validators.ts       # ✅ S3 bucket validations (COMPLETE)
+├── vpcValidators.ts      # ✅ VPC and networking validations (COMPLETE)
+├── securityValidators.ts # Security groups and IAM (TODO)
+├── computeValidators.ts  # EC2, ALB, RDS validations (TODO)
+└── index.ts             # ✅ Export all validators
 ```
+
+**Recent Fixes Applied:**
+- Fixed Internet Gateway validation to accept "available" attachment state
+- Fixed NAT Gateway route detection to properly identify private tier subnets
+- Enhanced subnet classification logic for accurate three-tier architecture validation
 
 #### Implementation Pattern
 Each validator should:
@@ -226,7 +233,7 @@ Each validator should:
 
 ---
 
-## Current Status: ✅ S3 Data Bucket Validation Implemented
+## Current Status: ✅ First 4 Exercises Implemented
 
 The foundation is complete with:
 - ✅ Real AWS credential handling and account validation
@@ -234,6 +241,9 @@ The foundation is complete with:
 - ✅ UI flow for authentication and exercise display
 - ✅ Proper TypeScript types and error handling
 - ✅ Development environment ready for external access
-- ✅ **S3 Data Bucket Validation with comprehensive security checks**
+- ✅ **S3 Data Bucket Validation** with comprehensive security checks
+- ✅ **S3 Web Bucket Validation** with real public access testing
+- ✅ **VPC Architecture Validation** with subnet design verification
+- ✅ **Route Table Validation** with Internet Gateway and NAT Gateway routing
 
-**Recently completed**: Full implementation of S3 data bucket security validation with real AWS API integration.
+**Recently completed**: Route table validation with fixes for Internet Gateway "available" state detection and NAT Gateway routing classification. All networking validations now work with real AWS infrastructure.
