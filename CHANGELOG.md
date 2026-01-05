@@ -2,6 +2,24 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.5.0] - 2026-01-05 - Application Load Balancer Validation
+
+### Added
+- **Application Load Balancer Validation (Exercise 7)** - Complete ALB configuration validation
+  - Target Group 'maintg' discovery and validation (port 8080, health checks)
+  - ALB 'pokemonlb' configuration validation (internet-facing, application type)
+  - Listener configuration analysis (HTTP port 80 routing to maintg)
+  - Comprehensive tag validation for both ALB and target group
+  - Detailed test results with "Show Details" functionality
+  - Real-time AWS API integration for ELB v2 resources
+
+### Technical
+- Added `@aws-sdk/client-elastic-load-balancing-v2` integration
+- Implemented `validateALBConfiguration` function with 5 comprehensive tests
+- Enhanced exercises route to support ALB validation
+- Added helper functions for target group and load balancer discovery
+- Comprehensive listener validation with routing analysis
+
 ## [1.4.0] - 2026-01-05 - RDS Database Protection Validation
 
 ### ✨ Added
