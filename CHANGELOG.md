@@ -2,6 +2,45 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.4.0] - 2026-01-05 - RDS Database Protection Validation
+
+### ✨ Added
+- **Complete RDS Database Protection Validation**: Sixth fully functional exercise with comprehensive AWS integration
+  - PostgreSQL database discovery with project tag validation (`proyecto=cybersec`)
+  - Multi-AZ deployment verification for high availability and business continuity
+  - Network isolation validation ensuring databases are in internal subnets only
+  - Security group assignment verification and access control validation
+  - Public accessibility prevention checks
+  - Comprehensive subnet tier classification with route table analysis
+- **Enhanced Database Security Checks**:
+  - Database engine validation (PostgreSQL requirement)
+  - High availability configuration analysis (primary/standby nodes)
+  - Backup retention period validation
+  - Subnet group isolation verification with three-tier architecture compliance
+  - Cross-validation with existing VPC validators for subnet classification
+- **Detailed Test Results**:
+  - 6 individual test conditions with pass/fail/warning/error status
+  - Comprehensive "Show Details" functionality with technical specifics
+  - Network isolation analysis with subnet-by-subnet route classification
+  - Security recommendations and remediation guidance
+
+### 🔧 Technical
+- Created `computeValidators.ts` with RDS protection validation logic
+- Integrated RDS Client and EC2 Client for comprehensive database and network analysis
+- Implemented subnet tier classification reusing existing VPC validation patterns
+- Added TypeScript type safety fixes for AWS SDK subnet ID handling
+- Enhanced error handling for RDS API failures and missing resources
+
+### 📊 Progress
+- **6/9 Exercises Complete**: S3 Security (2), VPC Architecture (1), Route Tables (1), Security Groups (1), RDS Protection (1)
+- All implemented exercises feature comprehensive "Show Details" functionality
+- Real AWS integration ensures accurate validation of security configurations
+- Consistent TestCondition-based result structure across all validators
+
+### 🛠️ Next Steps
+- Remaining exercises: Load Balancer (1), Launch Template (1), Auto Scaling Group (1)
+- Focus on compute layer and application deployment security validation
+
 ## [1.3.0] - 2026-01-05 - Security Groups Validation with Enhanced Details
 
 ### ✨ Added

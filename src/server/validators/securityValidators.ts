@@ -1,4 +1,4 @@
-import { EC2Client, DescribeSecurityGroupsCommand, DescribeVpcsCommand, SecurityGroup, IpPermission } from '@aws-sdk/client-ec2';
+import { EC2Client, DescribeSecurityGroupsCommand, DescribeVpcsCommand, SecurityGroup } from '@aws-sdk/client-ec2';
 import { ExerciseResult, AWSCredentials, TestCondition } from '../../shared/types.js';
 
 interface SecurityGroupValidation {
