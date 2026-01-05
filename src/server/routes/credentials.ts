@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts'
 import { IAMClient, GetUserCommand } from '@aws-sdk/client-iam'
-import type { AWSCredentials, AWSAccountInfo, APIResponse, CredentialsValidationResult } from '../../shared/types.js'
+import type { AWSCredentials, AWSAccountInfo, APIResponse, CredentialsValidationResult, StudentInfo } from '../../shared/types.js'
 
 const router = Router()
 
-// Simple in-memory credential store (in production, use secure storage)
+// Simple in-memory stores (in production, use secure storage)
 const credentialStore = new Map<string, AWSCredentials>()
+const studentInfoStore = new Map<string, StudentInfo>()
 
 // Generate a simple session ID (in production, use proper session management)
 function generateSessionId(): string {
@@ -16,6 +17,11 @@ function generateSessionId(): string {
 // Get stored credentials by session ID
 export function getStoredCredentials(sessionId: string): AWSCredentials | null {
   return credentialStore.get(sessionId) || null
+}
+
+// Get stored student info by session ID
+export function getStoredStudentInfo(sessionId: string): StudentInfo | null {
+  return studentInfoStore.get(sessionId) || null
 }
 
 // Parse AWS credentials from INI format
@@ -120,12 +126,37 @@ async function validateCredentials(credentials: AWSCredentials): Promise<Credent
 // POST /api/credentials/validate - Validate AWS credentials
 router.post('/validate', async (req, res) => {
   try {
-    const { credentialsText } = req.body
+    const { credentialsText, studentInfo } = req.body
 
     if (!credentialsText || typeof credentialsText !== 'string') {
       const response: APIResponse = {
         success: false,
         error: 'Credentials text is required'
+      }
+      return res.status(400).json(response)
+    }
+
+    if (!studentInfo || !studentInfo.name || !studentInfo.surnames) {
+      const response: APIResponse = {
+        success: false,
+        error: 'Student name and surnames are required'
+      }
+      return res.status(400).json(response)
+    }
+
+    // Validate student info format
+    if (typeof studentInfo.name !== 'string' || typeof studentInfo.surnames !== 'string') {
+      const response: APIResponse = {
+        success: false,
+        error: 'Student name and surnames must be valid text'
+      }
+      return res.status(400).json(response)
+    }
+
+    if (studentInfo.name.trim().length === 0 || studentInfo.surnames.trim().length === 0) {
+      const response: APIResponse = {
+        success: false,
+        error: 'Student name and surnames cannot be empty'
       }
       return res.status(400).json(response)
     }
@@ -143,17 +174,25 @@ router.post('/validate', async (req, res) => {
     // Validate credentials with AWS
     const validationResult = await validateCredentials(credentials)
 
-    // If valid, store credentials with session ID
+    // If valid, store credentials and student info with session ID
     let sessionId: string | undefined
     if (validationResult.isValid) {
       sessionId = generateSessionId()
       credentialStore.set(sessionId, credentials)
+      studentInfoStore.set(sessionId, {
+        name: studentInfo.name.trim(),
+        surnames: studentInfo.surnames.trim()
+      })
     }
 
     const response: APIResponse<CredentialsValidationResult & { sessionId?: string }> = {
       success: true,
       data: {
         ...validationResult,
+        studentInfo: validationResult.isValid ? {
+          name: studentInfo.name.trim(),
+          surnames: studentInfo.surnames.trim()
+        } : undefined,
         sessionId
       }
     }

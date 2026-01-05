@@ -2,6 +2,40 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.8.0] - 2026-01-05 - Student Information Integration
+
+### Added
+- **Student Information Form** - Complete Spanish academic format support
+  - Name (Nombre) input field for student's first name(s)
+  - Surnames (Apellidos) input field for complete surname combination
+  - Spanish formal display format: "Surnames, Name" throughout the application
+  - Required validation for both name and surnames before credential validation
+  - Persistent student identity display in exercise header
+  - Bilingual form labels (Spanish with English context)
+
+### Enhanced
+- **Form User Experience**
+  - Two-field student information layout (Name + Surnames)
+  - Clear instructions referencing official Spanish documents
+  - Visual separation between student info and AWS credentials sections
+  - Updated validation flow requiring complete student identification
+  - Spanish academic institution compatibility
+
+### Technical
+- Updated `StudentInfo` interface to use `name` and `surnames` properties
+- Enhanced backend validation for student information requirements
+- Secure session-based storage for student identity data
+- Updated frontend state management for new field structure
+- Improved error messaging for incomplete student information
+- Spanish naming convention support throughout type system
+
+### UI/UX
+- Professional Spanish academic format presentation
+- Student identity prominently displayed in exercises view
+- Comprehensive form reset including student information
+- Grid-based responsive layout for student information fields
+- Enhanced visual hierarchy with proper section separation
+
 ## [1.7.0] - 2026-01-05 - Auto Scaling Group Validation - Workshop Complete! 🎉
 
 ### Added

@@ -1,6 +1,6 @@
-import { AppShell, Burger, Group, Title, Text, Container, Card, Badge, Button, Stack, Textarea, Paper, Alert, Code, Divider, Flex, Collapse, List, ThemeIcon } from '@mantine/core'
+import { AppShell, Burger, Group, Title, Text, Container, Card, Badge, Button, Stack, Textarea, Paper, Alert, Code, Divider, Flex, Collapse, List, ThemeIcon, TextInput, Grid } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconShieldCheck, IconServer, IconDatabase, IconKey, IconAlertCircle, IconCheck, IconNetwork, IconX, IconExclamationMark, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
+import { IconShieldCheck, IconServer, IconDatabase, IconKey, IconAlertCircle, IconCheck, IconNetwork, IconX, IconExclamationMark, IconChevronDown, IconChevronUp, IconUser } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
 
 interface TestCondition {
@@ -34,12 +34,20 @@ interface AWSAccountInfo {
   userName?: string
 }
 
+interface StudentInfo {
+  name: string
+  surnames: string
+}
+
 function App() {
   const [opened, { toggle }] = useDisclosure()
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [credentialsText, setCredentialsText] = useState('')
+  const [studentName, setStudentName] = useState('')
+  const [studentSurnames, setStudentSurnames] = useState('')
   const [isValidating, setIsValidating] = useState(false)
   const [accountInfo, setAccountInfo] = useState<AWSAccountInfo | null>(null)
+  const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null)
   const [credentialsError, setCredentialsError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -61,6 +69,11 @@ function App() {
       return
     }
 
+    if (!studentName.trim() || !studentSurnames.trim()) {
+      setCredentialsError('Please enter both name and surnames')
+      return
+    }
+
     setIsValidating(true)
     setCredentialsError(null)
 
@@ -70,13 +83,20 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ credentialsText })
+        body: JSON.stringify({ 
+          credentialsText,
+          studentInfo: {
+            name: studentName.trim(),
+            surnames: studentSurnames.trim()
+          }
+        })
       })
 
       const result = await response.json()
 
       if (result.success && result.data.isValid) {
         setAccountInfo(result.data.accountInfo)
+        setStudentInfo(result.data.studentInfo)
         setSessionId(result.data.sessionId)
         setIsAuthenticated(true)
         setCredentialsError(null)
@@ -84,12 +104,14 @@ function App() {
         setCredentialsError(result.data?.error || result.error || 'Invalid credentials')
         setIsAuthenticated(false)
         setAccountInfo(null)
+        setStudentInfo(null)
         setSessionId(null)
       }
     } catch (error) {
       setCredentialsError('Failed to validate credentials. Please try again.')
       setIsAuthenticated(false)
       setAccountInfo(null)
+      setStudentInfo(null)
       setSessionId(null)
     } finally {
       setIsValidating(false)
@@ -237,10 +259,46 @@ function App() {
               )}
 
               <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Title order={4} mb="md">Enter AWS Credentials (INI Format)</Title>
-                <Text size="sm" c="dimmed" mb="md">
-                  Paste your AWS credentials in the standard INI format:
-                </Text>
+                <Title order={4} mb="md">Student Information & AWS Credentials</Title>
+                
+                <Stack>
+                  <div>
+                    <Title order={5} mb="sm">Student Information</Title>
+                    <Text size="sm" c="dimmed" mb="md">
+                      Enter your name and surnames as they appear in official documents:
+                    </Text>
+                    
+                    <Grid>
+                      <Grid.Col span={6}>
+                        <TextInput
+                          label="Name (Nombre)"
+                          placeholder="María, José, Carmen, etc."
+                          value={studentName}
+                          onChange={(event) => setStudentName(event.currentTarget.value)}
+                          leftSection={<IconUser size={16} />}
+                          required
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <TextInput
+                          label="Surnames (Apellidos)"
+                          placeholder="García López, Martínez Rodríguez, etc."
+                          value={studentSurnames}
+                          onChange={(event) => setStudentSurnames(event.currentTarget.value)}
+                          leftSection={<IconUser size={16} />}
+                          required
+                        />
+                      </Grid.Col>
+                    </Grid>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <Title order={5} mb="sm">AWS Credentials (INI Format)</Title>
+                    <Text size="sm" c="dimmed" mb="md">
+                      Paste your AWS credentials in the standard INI format:
+                    </Text>
                 
                 <Paper p="md" bg="gray.0" mb="md">
                   <Code block>
@@ -251,19 +309,21 @@ aws_session_token=YOUR_SESSION_TOKEN`}
                   </Code>
                 </Paper>
 
-                <Textarea
-                  placeholder="Paste your AWS credentials here..."
-                  value={credentialsText}
-                  onChange={(event) => setCredentialsText(event.currentTarget.value)}
-                  minRows={6}
-                  mb="md"
-                />
+                    <Textarea
+                      placeholder="Paste your AWS credentials here..."
+                      value={credentialsText}
+                      onChange={(event) => setCredentialsText(event.currentTarget.value)}
+                      minRows={6}
+                      mb="md"
+                    />
+                  </div>
+                </Stack>
 
                 <Flex justify="space-between" align="center">
                   <Button 
                     loading={isValidating}
                     onClick={validateCredentials}
-                    disabled={!credentialsText.trim()}
+                    disabled={!credentialsText.trim() || !studentName.trim() || !studentSurnames.trim()}
                   >
                     {isValidating ? 'Validating...' : 'Validate Credentials'}
                   </Button>
@@ -289,8 +349,13 @@ aws_session_token=YOUR_SESSION_TOKEN`}
                   </Text>
                 </div>
                 <Card p="sm" withBorder>
-                  <Text size="sm" fw={500}>Account: <Code>{accountInfo?.accountId}</Code></Text>
-                  <Text size="xs" c="dimmed">Region: {accountInfo?.region}</Text>
+                  <Group justify="space-between">
+                    <div>
+                      <Text size="sm" fw={500}>Student: {studentInfo?.surnames}, {studentInfo?.name}</Text>
+                      <Text size="xs" c="dimmed">Account: {accountInfo?.accountId} | Region: {accountInfo?.region}</Text>
+                    </div>
+                    <IconUser size={20} color="blue" />
+                  </Group>
                 </Card>
               </Flex>
               
@@ -387,7 +452,10 @@ aws_session_token=YOUR_SESSION_TOKEN`}
               <Button variant="subtle" onClick={() => {
                 setIsAuthenticated(false)
                 setAccountInfo(null)
+                setStudentInfo(null)
                 setCredentialsText('')
+                setStudentName('')
+                setStudentSurnames('')
                 setCredentialsError(null)
                 setSessionId(null)
               }}>

@@ -60,8 +60,14 @@ export interface AWSAccountInfo {
   userName?: string
 }
 
+export interface StudentInfo {
+  name: string
+  surnames: string
+}
+
 export interface CredentialsValidationResult {
   isValid: boolean
   accountInfo?: AWSAccountInfo
+  studentInfo?: StudentInfo
   error?: string
 }
