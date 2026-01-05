@@ -2,6 +2,17 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.6.1] - 2026-01-05 - Launch Template Architecture Correction
+
+### Fixed
+- **Launch Template Validation Architecture** - Corrected validation logic for workshop design
+  - Removed security group requirements from Launch Template (configured at ASG level)
+  - Removed key pair requirements from Launch Template (configured at ASG level)
+  - Launch Template now focuses on: IAM role, AMI, user data, instance type
+  - Auto Scaling Group will handle: security groups, key pairs, subnet placement
+  - Updated validation messages to reflect proper architecture separation
+  - Follows AWS best practices for Launch Template vs ASG responsibility separation
+
 ## [1.6.0] - 2026-01-05 - Launch Template Security Validation
 
 ### Added

@@ -178,6 +178,7 @@ aws_session_token=YOUR_SESSION_TOKEN
   - ✅ Validate IAM role assignment for secure AWS access
   - ✅ Check Ubuntu AMI base and image security
   - ✅ Analyze user data configuration for bootstrap automation
+  - ✅ Proper architecture separation (security groups/key pairs handled at ASG level)
   - ✅ Comprehensive security configuration validation with detailed results
 - [ ] **Auto Scaling Group Validation**: Check ASG in private subnets
   - Check Auto Scaling Group in private subnets only
@@ -421,4 +422,4 @@ The foundation is complete with:
 - ✅ **Application Load Balancer** with ALB and target group comprehensive validation
 - ✅ **Launch Template Security** with IAM role, AMI, and user data configuration validation
 
-**Recently completed**: Launch Template Security validation with comprehensive configuration checks including project tag validation (proyecto=cybersec, funcion=computacion), IAM role assignment verification, Ubuntu AMI base analysis, user data configuration review, and security group validation. Implements complete launch template security assessment with detailed test results and bootstrap automation analysis.
+**Recently completed**: Launch Template Security validation with comprehensive configuration checks including project tag validation (proyecto=cybersec, funcion=computacion), IAM role assignment verification, Ubuntu AMI base analysis, user data configuration review. Corrected architecture to follow workshop design where Launch Template handles instance configuration (IAM, AMI, user data) while Auto Scaling Group handles networking configuration (security groups, key pairs, subnet placement).
