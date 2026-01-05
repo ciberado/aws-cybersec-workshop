@@ -8,6 +8,11 @@ import {
   DescribeImagesCommand
 } from '@aws-sdk/client-ec2';
 import { 
+  AutoScalingClient,
+  DescribeAutoScalingGroupsCommand,
+  DescribeTagsCommand as ASGDescribeTagsCommand
+} from '@aws-sdk/client-auto-scaling';
+import { 
   ElasticLoadBalancingV2Client, 
   DescribeLoadBalancersCommand, 
   DescribeTargetGroupsCommand, 
@@ -1389,5 +1394,399 @@ function validateUserData(templateData: any): {
   
   // User data validation is informational, not critical for security
   const message = 'User data configuration analyzed';
+  return { valid, message, details };
+}
+
+/**
+ * Validate Auto Scaling Group Configuration (Exercise 9)
+ * Checks ASG deployment in private subnets with proper security
+ */
+export async function validateAutoScalingGroup(
+  credentials: AWSCredentials
+): Promise<ExerciseResult> {
+  const asgClient = new AutoScalingClient({
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: credentials.aws_access_key_id,
+      secretAccessKey: credentials.aws_secret_access_key,
+      sessionToken: credentials.aws_session_token
+    }
+  });
+
+  const ec2Client = new EC2Client({
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: credentials.aws_access_key_id,
+      secretAccessKey: credentials.aws_secret_access_key,
+      sessionToken: credentials.aws_session_token
+    }
+  });
+
+  const testResults: TestCondition[] = [];
+  let overallPassed = true;
+
+  try {
+    // Test 1: Find Auto Scaling Group with project tags
+    const asgDiscovery = await discoverProjectASG(asgClient);
+    testResults.push({
+      name: 'asg-discovery',
+      description: 'Locate Auto Scaling Group with project tags',
+      status: asgDiscovery.found ? 'pass' : 'fail',
+      message: asgDiscovery.message,
+      details: asgDiscovery.details.join('\n')
+    });
+    if (!asgDiscovery.found) overallPassed = false;
+
+    if (asgDiscovery.autoScalingGroup) {
+      // Test 2: Validate ASG configuration
+      const configValidation = validateASGConfig(asgDiscovery.autoScalingGroup);
+      testResults.push({
+        name: 'asg-configuration',
+        description: 'Verify ASG capacity, launch template, and target group registration',
+        status: configValidation.valid ? 'pass' : 'fail',
+        message: configValidation.message,
+        details: configValidation.details.join('\n')
+      });
+      if (!configValidation.valid) overallPassed = false;
+
+      // Test 3: Validate subnet placement (private subnets only)
+      const subnetValidation = await validateASGSubnetPlacement(ec2Client, asgDiscovery.autoScalingGroup);
+      testResults.push({
+        name: 'subnet-placement',
+        description: 'Verify ASG is deployed in private subnets only (not public/internal)',
+        status: subnetValidation.valid ? 'pass' : 'fail',
+        message: subnetValidation.message,
+        details: subnetValidation.details.join('\n')
+      });
+      if (!subnetValidation.valid) overallPassed = false;
+
+      // Test 4: Validate instances are healthy and registered
+      const instanceValidation = validateASGInstances(asgDiscovery.autoScalingGroup);
+      testResults.push({
+        name: 'instance-health',
+        description: 'Verify ASG instances are healthy and properly distributed',
+        status: instanceValidation.valid ? 'pass' : 'fail',
+        message: instanceValidation.message,
+        details: instanceValidation.details.join('\n')
+      });
+      if (!instanceValidation.valid) overallPassed = false;
+    }
+
+    const passedCount = testResults.filter(t => t.status === 'pass').length;
+    const totalTests = testResults.length;
+    const message = overallPassed
+      ? `✅ Auto Scaling Group is properly configured for secure deployment (${passedCount}/${totalTests} tests passed)`
+      : `❌ Auto Scaling Group configuration has issues that need attention (${passedCount}/${totalTests} tests passed)`;
+
+    return {
+      exerciseId: 'auto-scaling',
+      passed: overallPassed,
+      message,
+      testResults,
+      details: {
+        summary: 'Auto Scaling Group validation completed',
+        totalTests,
+        passedTests: passedCount,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+  } catch (error) {
+    console.error('Error validating Auto Scaling Group:', error);
+    
+    const errorTest: TestCondition = {
+      name: 'validation-error',
+      description: 'Auto Scaling Group validation process',
+      status: 'error',
+      message: 'Failed to validate due to AWS API error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    };
+    
+    return {
+      exerciseId: 'auto-scaling',
+      passed: false,
+      message: 'Auto Scaling Group validation failed due to error',
+      testResults: [errorTest],
+      details: { error: error instanceof Error ? error.message : 'Unknown error' }
+    };
+  }
+}
+
+// Helper function to discover Auto Scaling Group
+async function discoverProjectASG(asgClient: AutoScalingClient): Promise<{
+  found: boolean;
+  message: string;
+  details: string[];
+  autoScalingGroup?: any;
+}> {
+  try {
+    const { AutoScalingGroups } = await asgClient.send(new DescribeAutoScalingGroupsCommand({}));
+    const details: string[] = [];
+    
+    if (!AutoScalingGroups || AutoScalingGroups.length === 0) {
+      return {
+        found: false,
+        message: 'No Auto Scaling Groups found in region',
+        details: ['No Auto Scaling Groups exist in us-east-1 region']
+      };
+    }
+    
+    details.push(`Found ${AutoScalingGroups.length} Auto Scaling Group(s) in region`);
+    
+    // Check tags for each ASG to find project ASG
+    let projectASG = null;
+    
+    for (const asg of AutoScalingGroups) {
+      details.push(`ASG: ${asg.AutoScalingGroupName}`);
+      
+      // Get tags for this ASG
+      const tagsResponse = await asgClient.send(new ASGDescribeTagsCommand({
+        Filters: [
+          {
+            Name: 'auto-scaling-group',
+            Values: [asg.AutoScalingGroupName!]
+          }
+        ]
+      }));
+      
+      const tags = tagsResponse.Tags || [];
+      const tagMap = new Map(tags.map(tag => [tag.Key, tag.Value]));
+      
+      details.push(`  Tags: ${JSON.stringify(Object.fromEntries(tagMap))}`);
+      
+      if (tagMap.get('proyecto') === 'cybersec' && tagMap.get('funcion') === 'computacion') {
+        projectASG = asg;
+        details.push(`  ✓ Found project ASG with correct tags`);
+        break;
+      }
+    }
+    
+    if (!projectASG) {
+      return {
+        found: false,
+        message: 'No Auto Scaling Group found with required project tags',
+        details: [
+          ...details,
+          'No ASG found with tags: proyecto=cybersec, funcion=computacion'
+        ]
+      };
+    }
+    
+    return {
+      found: true,
+      message: `Auto Scaling Group '${projectASG.AutoScalingGroupName}' found with correct tags`,
+      details,
+      autoScalingGroup: projectASG
+    };
+    
+  } catch (error) {
+    return {
+      found: false,
+      message: 'Error discovering Auto Scaling Groups',
+      details: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+// Helper function to validate ASG configuration
+function validateASGConfig(asg: any): {
+  valid: boolean;
+  message: string;
+  details: string[];
+} {
+  const details: string[] = [];
+  let valid = true;
+  
+  // Check capacity (should be 2 instances fixed)
+  details.push(`Desired capacity: ${asg.DesiredCapacity}`);
+  details.push(`Min size: ${asg.MinSize}`);
+  details.push(`Max size: ${asg.MaxSize}`);
+  
+  if (asg.DesiredCapacity !== 2) {
+    valid = false;
+    details.push(`❌ Desired capacity is ${asg.DesiredCapacity}, expected 2`);
+  } else {
+    details.push(`✓ Desired capacity is correctly set to 2`);
+  }
+  
+  // Check Launch Template configuration
+  if (asg.LaunchTemplate) {
+    details.push(`✓ Launch Template configured: ${asg.LaunchTemplate.LaunchTemplateName || asg.LaunchTemplate.LaunchTemplateId}`);
+    details.push(`  Version: ${asg.LaunchTemplate.Version}`);
+  } else if (asg.MixedInstancesPolicy?.LaunchTemplate) {
+    const lt = asg.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification;
+    details.push(`✓ Launch Template configured (mixed instances): ${lt?.LaunchTemplateName || lt?.LaunchTemplateId}`);
+  } else {
+    valid = false;
+    details.push(`❌ No Launch Template configured`);
+  }
+  
+  // Check Target Groups
+  const targetGroups = asg.TargetGroupARNs || [];
+  if (targetGroups.length === 0) {
+    valid = false;
+    details.push(`❌ No target groups configured`);
+  } else {
+    details.push(`✓ ${targetGroups.length} target group(s) configured`);
+    
+    // Check if maintg is registered
+    const maintgRegistered = targetGroups.some((arn: string) => arn.includes('maintg'));
+    if (maintgRegistered) {
+      details.push(`✓ Registered with 'maintg' target group`);
+    } else {
+      valid = false;
+      details.push(`❌ Not registered with 'maintg' target group`);
+      details.push(`Current target groups: ${targetGroups.map((arn: string) => arn.split('/')[1]).join(', ')}`);
+    }
+  }
+  
+  // Check health check settings
+  details.push(`Health check type: ${asg.HealthCheckType}`);
+  details.push(`Health check grace period: ${asg.HealthCheckGracePeriod}s`);
+  
+  if (asg.HealthCheckType === 'ELB') {
+    details.push(`✓ ELB health checks enabled (recommended for load balanced instances)`);
+  }
+  
+  const message = valid
+    ? 'Auto Scaling Group configuration is correct'
+    : 'Auto Scaling Group configuration has issues';
+    
+  return { valid, message, details };
+}
+
+// Helper function to validate subnet placement
+async function validateASGSubnetPlacement(ec2Client: EC2Client, asg: any): Promise<{
+  valid: boolean;
+  message: string;
+  details: string[];
+}> {
+  try {
+    const details: string[] = [];
+    let valid = true;
+    
+    const subnetIds = asg.VPCZoneIdentifier?.split(',') || [];
+    
+    if (subnetIds.length === 0) {
+      return {
+        valid: false,
+        message: 'No subnets configured for ASG',
+        details: ['Auto Scaling Group must specify VPC subnets']
+      };
+    }
+    
+    details.push(`ASG configured with ${subnetIds.length} subnet(s): ${subnetIds.join(', ')}`);
+    
+    // Get subnet details
+    const { Subnets } = await ec2Client.send(new DescribeSubnetsCommand({
+      SubnetIds: subnetIds
+    }));
+    
+    if (!Subnets || Subnets.length === 0) {
+      return {
+        valid: false,
+        message: 'Could not retrieve subnet information',
+        details: ['Unable to validate subnet configuration']
+      };
+    }
+    
+    // Get route tables to classify subnets
+    const { RouteTables } = await ec2Client.send(new DescribeRouteTablesCommand({
+      Filters: [
+        {
+          Name: 'vpc-id',
+          Values: [Subnets[0].VpcId!]
+        }
+      ]
+    }));
+    
+    // Classify subnets by route analysis (reuse existing function)
+    const subnetClassifications = new Map<string, string>();
+    
+    for (const subnet of Subnets) {
+      const tier = classifySubnetTier(subnet, RouteTables || []);
+      subnetClassifications.set(subnet.SubnetId!, tier);
+    }
+    
+    for (const subnet of Subnets) {
+      const classification = subnetClassifications.get(subnet.SubnetId!);
+      details.push(`Subnet ${subnet.SubnetId} (${subnet.AvailabilityZone}): ${classification}`);
+      
+      if (classification === 'private') {
+        details.push(`  ✓ Correctly placed in private subnet`);
+      } else {
+        valid = false;
+        details.push(`  ❌ Should be in private subnet, found in ${classification} subnet`);
+      }
+    }
+    
+    const message = valid
+      ? 'ASG is correctly deployed in private subnets only'
+      : 'ASG deployment has subnet placement issues';
+      
+    return { valid, message, details };
+    
+  } catch (error) {
+    return {
+      valid: false,
+      message: 'Error validating subnet placement',
+      details: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+// Helper function to validate ASG instances
+function validateASGInstances(asg: any): {
+  valid: boolean;
+  message: string;
+  details: string[];
+} {
+  const details: string[] = [];
+  let valid = true;
+  
+  const instances = asg.Instances || [];
+  details.push(`Current instances: ${instances.length}`);
+  
+  if (instances.length === 0) {
+    valid = false;
+    details.push(`❌ No instances currently running`);
+  } else {
+    details.push(`✓ ${instances.length} instance(s) running`);
+    
+    // Check instance health
+    const healthyInstances = instances.filter((i: any) => i.HealthStatus === 'Healthy').length;
+    const inServiceInstances = instances.filter((i: any) => i.LifecycleState === 'InService').length;
+    
+    details.push(`Healthy instances: ${healthyInstances}/${instances.length}`);
+    details.push(`InService instances: ${inServiceInstances}/${instances.length}`);
+    
+    if (healthyInstances === instances.length) {
+      details.push(`✓ All instances are healthy`);
+    } else {
+      details.push(`⚠️ Some instances may not be healthy yet`);
+    }
+    
+    // Check AZ distribution
+    const azDistribution = new Map();
+    instances.forEach((instance: any) => {
+      const az = instance.AvailabilityZone;
+      azDistribution.set(az, (azDistribution.get(az) || 0) + 1);
+    });
+    
+    details.push(`Availability zones: ${Array.from(azDistribution.entries()).map(([az, count]) => `${az}(${count})`).join(', ')}`);
+    
+    if (azDistribution.size > 1) {
+      details.push(`✓ Instances distributed across multiple AZs for high availability`);
+    } else if (instances.length > 1) {
+      details.push(`⚠️ All instances in single AZ - consider multi-AZ deployment`);
+    }
+  }
+  
+  const message = valid && instances.length > 0
+    ? 'ASG instances are properly configured and healthy'
+    : instances.length === 0
+      ? 'No instances currently running in ASG'
+      : 'ASG instance configuration has issues';
+      
   return { valid, message, details };
 }

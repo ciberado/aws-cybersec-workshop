@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration, validateLaunchTemplate } from '../validators/index.js';
+import { validateS3DataBucket, validateS3WebBucket, validateVPCArchitecture, validateRouteTables, validateSecurityGroups, validateRDSProtection, validateALBConfiguration, validateLaunchTemplate, validateAutoScalingGroup } from '../validators/index.js';
 import { getStoredCredentials } from './credentials.js';
 const router = Router();
 // Workshop exercises based on the README requirements
@@ -143,39 +143,10 @@ async function checkExercise(exercise, credentials) {
             return await validateALBConfiguration(credentials);
         case 'launch-template':
             return await validateLaunchTemplate(credentials);
-        // TODO: Implement remaining exercises
         case 'auto-scaling':
-            // Simulate for now
-            return simulateExerciseCheck(exercise);
+            return await validateAutoScalingGroup(credentials);
         default:
             throw new Error(`Unknown exercise: ${exercise.id}`);
     }
-}
-// Simulate exercise checking logic for unimplemented exercises
-async function simulateExerciseCheck(exercise) {
-    // Simulate async checking with random delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-    // Simulate random success/failure for demo purposes
-    const passed = Math.random() > 0.3;
-    const messages = {
-        's3-web-bucket': passed ? 'Web bucket properly configured with static hosting' : 'Web bucket configuration issues found',
-        'vpc-architecture': passed ? 'VPC architecture meets security requirements' : 'VPC architecture security issues found',
-        'route-tables': passed ? 'Route tables properly configured for traffic control' : 'Route table configuration issues found',
-        'security-groups': passed ? 'Security groups properly implement microsegmentation' : 'Security group configuration issues found',
-        'rds-protection': passed ? 'RDS database properly protected in internal subnet' : 'RDS protection issues found',
-        'load-balancer': passed ? 'Load balancer properly configured' : 'Load balancer configuration issues found',
-        'launch-template': passed ? 'Launch template properly secured with IAM role' : 'Launch template security issues found',
-        'auto-scaling': passed ? 'Auto Scaling Group properly configured' : 'Auto Scaling Group configuration issues found'
-    };
-    return {
-        exerciseId: exercise.id,
-        passed,
-        message: messages[exercise.id] || 'Check completed',
-        details: {
-            timestamp: new Date().toISOString(),
-            checkFunction: exercise.checkFunction,
-            note: 'This exercise uses simulated validation - real implementation coming soon'
-        }
-    };
 }
 export default router;

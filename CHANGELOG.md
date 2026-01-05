@@ -2,6 +2,33 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.7.0] - 2026-01-05 - Auto Scaling Group Validation - Workshop Complete! 🎉
+
+### Added
+- **Auto Scaling Group Validation (Exercise 9)** - Complete ASG deployment security validation
+  - Project tag validation (proyecto=cybersec, funcion=computacion)
+  - Private subnet deployment verification (not public/internal tiers)
+  - Launch Template integration validation
+  - Target group registration to 'maintg' verification
+  - Fixed capacity configuration validation (2 instances)
+  - Instance health and availability zone distribution analysis
+  - Detailed test results with "Show Details" functionality
+  - Real-time AWS API integration for Auto Scaling Groups
+
+### Completed
+- **All 9 Workshop Exercises** now have real AWS validation
+- **Complete Workshop Implementation** with comprehensive security assessments
+- **10 Points Total** - All exercises validate actual AWS infrastructure
+
+### Technical
+- Added `@aws-sdk/client-auto-scaling` integration
+- Implemented `validateAutoScalingGroup` function with 4 comprehensive tests
+- Enhanced exercises route to support all 9 exercises with real validation
+- Removed simulation logic - all exercises use real AWS API calls
+- Complete workshop validation suite with detailed test results
+- Advanced subnet tier classification for ASG placement validation
+- Instance health and multi-AZ distribution analysis
+
 ## [1.6.1] - 2026-01-05 - Launch Template Architecture Correction
 
 ### Fixed
