@@ -19,12 +19,12 @@ app.use('/api/exercises', exerciseRoutes)
 app.use('/api/credentials', credentialsRoutes)
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
 
 // Serve React app for all other routes
-app.get('*', (req, res) => {
+app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, '../client/index.html'))
 })
 

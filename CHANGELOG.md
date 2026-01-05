@@ -2,6 +2,32 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.2.0] - 2026-01-05 - S3 Web Bucket Validation Implementation
+
+### ✨ Added
+- **Complete S3 Web Bucket Validation**: Second fully functional exercise with comprehensive security checks
+  - Static website hosting configuration validation using GetBucketWebsiteCommand
+  - Real public accessibility testing with detailed permission analysis
+  - Bucket policy and ACL analysis for s3:GetObject permissions
+  - Controlled access validation (prevents excessive write permissions)
+  - Integration with existing bucket discovery patterns using tags (proyecto=cybersec, funcion=web)
+- **Enhanced Security Analysis**:
+  - Separate validation for bucket policies vs ACL-based public access
+  - Detection of excessive permissions (write, full control) while allowing required read access
+  - Public Access Block configuration analysis for web hosting compatibility
+  - Detailed feedback on why public access may or may not be working
+
+### 🐛 Fixed
+- **TypeScript Compilation**: Fixed unused parameter warnings in server routes
+- **Public Access Logic**: Corrected false positive where web bucket validation assumed public access without verifying actual permissions
+- **Validation Accuracy**: Improved detection of missing s3:GetObject permissions for proper website functionality
+
+### 🔧 Technical
+- Added `GetBucketWebsiteCommand` and `HeadObjectCommand` to S3 client imports
+- Enhanced `checkIndexFile` function with real public access verification
+- Improved `checkControlledAccess` function with better permission analysis
+- New `checkPublicReadAccess` helper function for comprehensive access validation
+
 ## [1.1.0] - 2026-01-04 - S3 Data Bucket Validation Implementation
 
 ### ✨ Added

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import type { Exercise, ExerciseResult, APIResponse } from '../../shared/types.js'
-import { validateS3DataBucket } from '../validators/index.js'
+import { validateS3DataBucket, validateS3WebBucket } from '../validators/index.js'
 import { getStoredCredentials } from './credentials.js'
 
 const router = Router()
@@ -82,7 +82,7 @@ const exercises: Exercise[] = [
 ]
 
 // GET /api/exercises - Get all exercises
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
   const response: APIResponse<Exercise[]> = {
     success: true,
     data: exercises
@@ -124,10 +124,6 @@ router.post('/:id/check', async (req, res) => {
   try {
     const result = await checkExercise(exercise, credentials)
     
-    const response: APIResponse<ExerciseResult> = {
-      success: true,
-      data: result
-    }
     res.json(result)
   } catch (error) {
     const response: APIResponse = {
@@ -144,8 +140,10 @@ async function checkExercise(exercise: Exercise, credentials: any): Promise<Exer
     case 's3-data-bucket':
       return await validateS3DataBucket(credentials)
     
-    // TODO: Implement other exercises
     case 's3-web-bucket':
+      return await validateS3WebBucket(credentials)
+    
+    // TODO: Implement other exercises
     case 'vpc-architecture':
     case 'route-tables':
     case 'security-groups':

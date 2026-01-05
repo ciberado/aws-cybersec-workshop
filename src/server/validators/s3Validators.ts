@@ -1,4 +1,4 @@
-import { S3Client, HeadBucketCommand, GetObjectCommand, GetBucketPolicyCommand, GetBucketAclCommand, GetBucketPolicyStatusCommand, ListBucketsCommand, GetBucketTaggingCommand, GetPublicAccessBlockCommand } from '@aws-sdk/client-s3'
+import { S3Client, HeadBucketCommand, GetObjectCommand, GetBucketPolicyCommand, GetBucketAclCommand, GetBucketPolicyStatusCommand, ListBucketsCommand, GetBucketTaggingCommand, GetPublicAccessBlockCommand, GetBucketWebsiteCommand } from '@aws-sdk/client-s3'
 import type { AWSCredentials, ValidationResult, ExerciseResult, TestCondition } from '../../shared/types.js'
 
 export interface S3ValidationResult extends ValidationResult {
@@ -412,14 +412,470 @@ export async function validateS3WebBucket(
   credentials: AWSCredentials,
   bucketNamePattern: string = 'cybersec'
 ): Promise<ExerciseResult> {
-  // TODO: Implement web bucket validation
-  return {
-    exerciseId: 's3-web-bucket',
-    passed: false,
-    message: 'Web bucket validation not implemented yet',
-    details: {
-      timestamp: new Date().toISOString(),
-      checkFunction: 'checkS3WebBucket'
+  const s3Client = new S3Client({
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: credentials.aws_access_key_id,
+      secretAccessKey: credentials.aws_secret_access_key,
+      sessionToken: credentials.aws_session_token
+    }
+  })
+
+  const testResults: TestCondition[] = []
+  let overallPassed = true
+
+  try {
+    // Test 1: Find the web bucket
+    const bucketName = await findWebBucket(s3Client, bucketNamePattern)
+    if (!bucketName) {
+      testResults.push({
+        name: 'bucket-discovery',
+        description: 'Locate S3 bucket with correct tags (proyecto=cybersec, funcion=web)',
+        status: 'fail',
+        message: 'No web bucket found with required tags',
+        details: `Searched for buckets with tags proyecto=cybersec and funcion=web. Also tried pattern-based names like: ${bucketNamePattern}-web, ${bucketNamePattern}-website, etc.`
+      })
+      overallPassed = false
+      
+      return {
+        exerciseId: 's3-web-bucket',
+        passed: false,
+        message: 'S3 web bucket not found with required tags (proyecto=cybersec, funcion=web)',
+        testResults,
+        details: {
+          timestamp: new Date().toISOString(),
+          checkFunction: 'checkS3WebBucket'
+        }
+      }
+    }
+
+    testResults.push({
+      name: 'bucket-discovery',
+      description: 'Locate S3 bucket with correct tags (proyecto=cybersec, funcion=web)',
+      status: 'pass',
+      message: `Found web bucket: ${bucketName}`,
+      details: 'Bucket discovered with correct tagging'
+    })
+
+    // Test 2: Check website configuration
+    const websiteConfigResult = await checkWebsiteConfiguration(s3Client, bucketName)
+    testResults.push({
+      name: 'website-configuration',
+      description: 'Verify bucket is configured for static website hosting',
+      status: websiteConfigResult.isConfigured ? 'pass' : 'fail',
+      message: websiteConfigResult.isConfigured ? 
+        'Bucket properly configured for static website hosting' : 
+        'Bucket not configured for static website hosting',
+      details: websiteConfigResult.details.join('\n')
+    })
+    if (!websiteConfigResult.isConfigured) overallPassed = false
+
+    // Test 3: Check index.html exists and is accessible
+    const indexFileResult = await checkIndexFile(s3Client, bucketName)
+    testResults.push({
+      name: 'index-file-access',
+      description: 'Verify index.html exists and is publicly accessible',
+      status: indexFileResult.exists && indexFileResult.publiclyAccessible ? 'pass' : 'fail',
+      message: indexFileResult.exists && indexFileResult.publiclyAccessible ?
+        'index.html exists and is publicly accessible' :
+        indexFileResult.exists ? 'index.html exists but is not publicly accessible' : 'index.html file not found',
+      details: indexFileResult.details.join('\n')
+    })
+    if (!indexFileResult.exists || !indexFileResult.publiclyAccessible) overallPassed = false
+
+    // Test 4: Check controlled public access (bucket should not be completely open)
+    const accessControlResult = await checkControlledAccess(s3Client, bucketName)
+    testResults.push({
+      name: 'controlled-access',
+      description: 'Verify public access is controlled (no excessive permissions)',
+      status: accessControlResult.isControlled ? 'pass' : 'fail',
+      message: accessControlResult.isControlled ?
+        'Public access is properly controlled' :
+        'Bucket has excessive public permissions',
+      details: accessControlResult.details.join('\n')
+    })
+    if (!accessControlResult.isControlled) overallPassed = false
+
+    return {
+      exerciseId: 's3-web-bucket',
+      passed: overallPassed,
+      message: overallPassed ? 
+        'S3 web bucket properly configured for secure static hosting' :
+        'S3 web bucket configuration issues found',
+      testResults,
+      details: {
+        bucketName,
+        websiteEndpoint: websiteConfigResult.websiteUrl,
+        timestamp: new Date().toISOString(),
+        checkFunction: 'checkS3WebBucket'
+      }
+    }
+
+  } catch (error: any) {
+    console.error('Error validating S3 web bucket:', error)
+    
+    return {
+      exerciseId: 's3-web-bucket',
+      passed: false,
+      message: `Error validating S3 web bucket: ${error.message}`,
+      testResults: [{
+        name: 'validation-error',
+        description: 'S3 web bucket validation process',
+        status: 'fail',
+        message: error.message || 'Unknown error',
+        details: error.stack || 'No stack trace available'
+      }],
+      details: {
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        checkFunction: 'checkS3WebBucket'
+      }
     }
   }
 }
+
+/**
+ * Find the web bucket using tags and naming patterns
+ */
+async function findWebBucket(s3Client: S3Client, bucketNamePattern: string): Promise<string | null> {
+  try {
+    const response = await s3Client.send(new ListBucketsCommand({}))
+    const buckets = response.Buckets || []
+
+    // First, try to find bucket with correct tags
+    for (const bucket of buckets) {
+      if (!bucket.Name) continue
+      
+      try {
+        const tagsResponse = await s3Client.send(new GetBucketTaggingCommand({
+          Bucket: bucket.Name
+        }))
+        
+        const tags = tagsResponse.TagSet || []
+        const hasProyectoTag = tags.some(tag => tag.Key === 'proyecto' && tag.Value === 'cybersec')
+        const hasFuncionTag = tags.some(tag => tag.Key === 'funcion' && tag.Value === 'web')
+        
+        if (hasProyectoTag && hasFuncionTag) {
+          return bucket.Name
+        }
+      } catch (tagError) {
+        // Skip buckets without tags or permission errors
+        continue
+      }
+    }
+
+    // Fallback: try name-based patterns
+    const patterns = [
+      `${bucketNamePattern}-web`,
+      `${bucketNamePattern}-website`,
+      `${bucketNamePattern}web`,
+      `web-${bucketNamePattern}`,
+      `website-${bucketNamePattern}`
+    ]
+
+    for (const pattern of patterns) {
+      for (const bucket of buckets) {
+        if (bucket.Name?.includes(pattern)) {
+          return bucket.Name
+        }
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error finding web bucket:', error)
+    return null
+  }
+}
+
+/**
+ * Check if bucket is configured for static website hosting
+ */
+async function checkWebsiteConfiguration(s3Client: S3Client, bucketName: string): Promise<{
+  isConfigured: boolean
+  websiteUrl?: string
+  details: string[]
+}> {
+  const details: string[] = []
+
+  try {
+    const websiteResponse = await s3Client.send(new GetBucketWebsiteCommand({
+      Bucket: bucketName
+    }))
+
+    if (websiteResponse.IndexDocument?.Suffix) {
+      details.push(`✅ Website hosting enabled with index document: ${websiteResponse.IndexDocument.Suffix}`)
+      
+      if (websiteResponse.ErrorDocument?.Key) {
+        details.push(`✅ Error document configured: ${websiteResponse.ErrorDocument.Key}`)
+      }
+      
+      const websiteUrl = `http://${bucketName}.s3-website-us-east-1.amazonaws.com`
+      details.push(`✅ Website URL: ${websiteUrl}`)
+      
+      return {
+        isConfigured: true,
+        websiteUrl,
+        details
+      }
+    } else {
+      details.push('❌ Website hosting enabled but no index document configured')
+      return { isConfigured: false, details }
+    }
+    
+  } catch (error: any) {
+    if (error.name === 'NoSuchWebsiteConfiguration') {
+      details.push('❌ No website configuration found')
+    } else {
+      details.push(`❌ Error checking website configuration: ${error.message}`)
+    }
+    return { isConfigured: false, details }
+  }
+}
+
+/**
+ * Check if index.html exists and is accessible
+ */
+async function checkIndexFile(s3Client: S3Client, bucketName: string): Promise<{
+  exists: boolean
+  publiclyAccessible: boolean
+  details: string[]
+}> {
+  const details: string[] = []
+
+  try {
+    // Check if index.html exists
+    await s3Client.send(new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: 'index.html'
+    }))
+    
+    details.push('✅ index.html file exists in bucket root')
+
+    // Check if public read access is actually configured
+    const publicReadAccess = await checkPublicReadAccess(s3Client, bucketName)
+    
+    if (publicReadAccess.hasPublicRead) {
+      details.push('✅ Public read access is properly configured')
+      details.push(...publicReadAccess.details)
+      
+      return {
+        exists: true,
+        publiclyAccessible: true,
+        details
+      }
+    } else {
+      details.push('❌ index.html exists but is not publicly accessible')
+      details.push(...publicReadAccess.details)
+      
+      return {
+        exists: true,
+        publiclyAccessible: false,
+        details
+      }
+    }
+
+  } catch (error: any) {
+    if (error.name === 'NotFound' || error.name === 'NoSuchKey') {
+      details.push('❌ index.html file not found in bucket root')
+    } else {
+      details.push(`❌ Error checking index.html: ${error.message}`)
+    }
+    
+    return {
+      exists: false,
+      publiclyAccessible: false,
+      details
+    }
+  }
+}
+
+/**
+ * Check if bucket has public read access configured
+ */
+async function checkPublicReadAccess(s3Client: S3Client, bucketName: string): Promise<{
+  hasPublicRead: boolean
+  details: string[]
+}> {
+  const details: string[] = []
+  let hasPublicReadViaBucketPolicy = false
+  let hasPublicReadViaACL = false
+
+  // Check bucket policy for public read access
+  try {
+    const policyResponse = await s3Client.send(new GetBucketPolicyCommand({
+      Bucket: bucketName
+    }))
+    
+    if (policyResponse.Policy) {
+      const policy = JSON.parse(policyResponse.Policy)
+      
+      for (const statement of policy.Statement || []) {
+        if (statement.Principal === '*' || 
+            (statement.Principal && statement.Principal.AWS === '*')) {
+          
+          const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action]
+          
+          if ((actions.includes('s3:GetObject') || actions.includes('s3:*')) && statement.Effect === 'Allow') {
+            hasPublicReadViaBucketPolicy = true
+            details.push('✅ Found public s3:GetObject permission in bucket policy')
+          }
+        }
+      }
+      
+      if (!hasPublicReadViaBucketPolicy) {
+        details.push('❌ Bucket policy exists but no public s3:GetObject permission found')
+      }
+    }
+  } catch (error: any) {
+    if (error.name === 'NoSuchBucketPolicy') {
+      details.push('ℹ️ No bucket policy found - checking ACLs for public access')
+    } else {
+      details.push(`⚠️ Error reading bucket policy: ${error.message}`)
+    }
+  }
+
+  // Check bucket ACL for public read access
+  try {
+    const aclResponse = await s3Client.send(new GetBucketAclCommand({
+      Bucket: bucketName
+    }))
+    
+    const acl = aclResponse.Grants || []
+    
+    for (const grant of acl) {
+      if (grant.Grantee?.URI?.includes('AllUsers') && grant.Permission === 'READ') {
+        hasPublicReadViaACL = true
+        details.push('✅ Found public READ permission via bucket ACL')
+      }
+    }
+    
+    if (!hasPublicReadViaACL && !hasPublicReadViaBucketPolicy) {
+      details.push('❌ No public READ permission found in bucket ACL')
+    }
+  } catch (error: any) {
+    details.push(`⚠️ Error reading bucket ACL: ${error.message}`)
+  }
+
+  return {
+    hasPublicRead: hasPublicReadViaBucketPolicy || hasPublicReadViaACL,
+    details
+  }
+}
+
+/**
+ * Check that public access is controlled (not completely open)
+ */
+async function checkControlledAccess(s3Client: S3Client, bucketName: string): Promise<{
+  isControlled: boolean
+  details: string[]
+}> {
+  const details: string[] = []
+  let hasExcessivePermissions = false
+  let hasRequiredReadAccess = false
+
+  // Check bucket policy for permissions
+  try {
+    const policyResponse = await s3Client.send(new GetBucketPolicyCommand({
+      Bucket: bucketName
+    }))
+    
+    if (policyResponse.Policy) {
+      const policy = JSON.parse(policyResponse.Policy)
+      details.push('ℹ️ Bucket policy exists - analyzing permissions...')
+      
+      for (const statement of policy.Statement || []) {
+        if (statement.Principal === '*' || 
+            (statement.Principal && statement.Principal.AWS === '*')) {
+          
+          const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action]
+          
+          // Check for required read access (s3:GetObject for website)
+          if (statement.Effect === 'Allow' && 
+              (actions.includes('s3:GetObject') || actions.includes('s3:*'))) {
+            hasRequiredReadAccess = true
+            details.push('✅ Found public s3:GetObject permission (required for website)')
+          }
+          
+          // Check for excessive write permissions
+          const writeActions = ['s3:PutObject', 's3:DeleteObject', 's3:PutObjectAcl', 's3:DeleteBucket']
+          const hasWriteAccess = writeActions.some(action => 
+            actions.includes(action) || actions.includes('s3:*'))
+          
+          if (hasWriteAccess && statement.Effect === 'Allow') {
+            hasExcessivePermissions = true
+            details.push(`❌ Found excessive public write permissions in bucket policy: ${actions.join(', ')}`)
+          }
+        }
+      }
+    } else {
+      details.push('ℹ️ No bucket policy found')
+    }
+  } catch (error: any) {
+    if (error.name === 'NoSuchBucketPolicy') {
+      details.push('ℹ️ No bucket policy found')
+    } else {
+      details.push(`⚠️ Error reading bucket policy: ${error.message}`)
+    }
+  }
+
+  // Check bucket ACL for permissions
+  try {
+    const aclResponse = await s3Client.send(new GetBucketAclCommand({
+      Bucket: bucketName
+    }))
+    
+    const acl = aclResponse.Grants || []
+    
+    for (const grant of acl) {
+      if (grant.Grantee?.URI?.includes('AllUsers')) {
+        if (grant.Permission === 'READ') {
+          hasRequiredReadAccess = true
+          details.push('✅ Found public READ access via ACL (required for website)')
+        } else if (grant.Permission === 'WRITE' || grant.Permission === 'FULL_CONTROL') {
+          hasExcessivePermissions = true
+          details.push(`❌ Found excessive public permission via ACL: ${grant.Permission}`)
+        }
+      }
+    }
+  } catch (error: any) {
+    details.push(`⚠️ Error reading bucket ACL: ${error.message}`)
+  }
+
+  // Check Public Access Block settings
+  try {
+    const publicAccessBlockResponse = await s3Client.send(new GetPublicAccessBlockCommand({
+      Bucket: bucketName
+    }))
+    
+    const pab = publicAccessBlockResponse.PublicAccessBlockConfiguration
+    if (pab) {
+      details.push('ℹ️ Public Access Block configuration:')
+      details.push(`  - Block Public ACLs: ${pab.BlockPublicAcls}`)
+      details.push(`  - Ignore Public ACLs: ${pab.IgnorePublicAcls}`)
+      details.push(`  - Block Public Policy: ${pab.BlockPublicPolicy}`)
+      details.push(`  - Restrict Public Buckets: ${pab.RestrictPublicBuckets}`)
+      
+      // Check if PAB settings are blocking required web access
+      if ((pab.BlockPublicPolicy === true || pab.RestrictPublicBuckets === true) && !hasRequiredReadAccess) {
+        details.push('⚠️ Public Access Block may be preventing required web hosting access')
+      }
+    } else {
+      details.push('ℹ️ No Public Access Block configuration')
+    }
+  } catch (error: any) {
+    if (error.name === 'NoSuchPublicAccessBlockConfiguration') {
+      details.push('ℹ️ No Public Access Block configuration')
+    } else {
+      details.push(`⚠️ Error reading Public Access Block: ${error.message}`)
+    }
+  }
+
+  return {
+    isControlled: !hasExcessivePermissions,
+    details
+  }
+}
+
+// Import HeadObjectCommand that we need for the index file check
+import { HeadObjectCommand } from '@aws-sdk/client-s3'
