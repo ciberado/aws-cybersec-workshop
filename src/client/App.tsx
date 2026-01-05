@@ -1,6 +1,6 @@
-import { AppShell, Burger, Group, Title, Text, Container, Card, Badge, Button, Stack, Textarea, Paper, Alert, Code, Divider, Flex, Collapse, List, ThemeIcon, TextInput, Grid } from '@mantine/core'
+import { AppShell, Burger, Group, Title, Text, Container, Card, Badge, Button, Stack, Textarea, Paper, Alert, Code, Divider, Flex, Collapse, List, ThemeIcon, TextInput, Grid, Center, RingProgress } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconShieldCheck, IconServer, IconDatabase, IconKey, IconAlertCircle, IconCheck, IconNetwork, IconX, IconExclamationMark, IconChevronDown, IconChevronUp, IconUser } from '@tabler/icons-react'
+import { IconShieldCheck, IconServer, IconDatabase, IconKey, IconAlertCircle, IconCheck, IconNetwork, IconX, IconExclamationMark, IconChevronDown, IconChevronUp, IconUser, IconTrophy } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
 
 interface TestCondition {
@@ -208,6 +208,16 @@ function App() {
     })
   }
 
+  // Calculate current score based on passed exercises
+  const calculateScore = () => {
+    const passedExercises = exercises.filter(ex => ex.status === 'passed')
+    const totalPoints = passedExercises.reduce((sum, ex) => sum + ex.points, 0)
+    const maxPoints = exercises.reduce((sum, ex) => sum + ex.points, 0)
+    return { current: totalPoints, max: maxPoints, percentage: maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0 }
+  }
+
+  const score = calculateScore()
+
   return (
     <AppShell
       header={{ height: 60 }}
@@ -225,13 +235,59 @@ function App() {
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
-        <Title order={4} mb="md">Categories</Title>
-        <Stack>
-          <Button variant="light" leftSection={<IconKey size={16} />}>IAM Security</Button>
-          <Button variant="light" leftSection={<IconDatabase size={16} />}>S3 Security</Button>
-          <Button variant="light" leftSection={<IconServer size={16} />}>EC2 Security</Button>
-          <Button variant="light" leftSection={<IconDatabase size={16} />}>RDS Security</Button>
-        </Stack>
+        <Center>
+          <Stack align="center" gap="lg">
+            <div>
+              <Center mb="xs">
+                <IconTrophy size={32} color="gold" />
+              </Center>
+              <Title order={4} ta="center">Assessment Score</Title>
+            </div>
+            
+            <RingProgress
+              size={140}
+              thickness={12}
+              sections={[
+                { value: score.percentage, color: score.percentage >= 80 ? 'green' : score.percentage >= 60 ? 'yellow' : 'red' }
+              ]}
+              label={
+                <Center>
+                  <div style={{ textAlign: 'center' }}>
+                    <Text size="xl" fw={900} c={score.percentage >= 80 ? 'green' : score.percentage >= 60 ? 'yellow' : 'red'}>
+                      {score.current}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      / {score.max}
+                    </Text>
+                  </div>
+                </Center>
+              }
+            />
+            
+            <Stack gap="xs" align="center">
+              <Badge 
+                size="lg" 
+                color={score.percentage >= 80 ? 'green' : score.percentage >= 60 ? 'yellow' : 'red'}
+                variant="light"
+              >
+                {Math.round(score.percentage)}% Complete
+              </Badge>
+              
+              {isAuthenticated && (
+                <div style={{ textAlign: 'center' }}>
+                  <Text size="xs" c="dimmed">
+                    {exercises.filter(ex => ex.status === 'passed').length} of {exercises.length} exercises passed
+                  </Text>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {exercises.filter(ex => ex.status === 'checking').length > 0 && 
+                      `${exercises.filter(ex => ex.status === 'checking').length} in progress...`
+                    }
+                  </Text>
+                </div>
+              )}
+            </Stack>
+          </Stack>
+        </Center>
       </AppShell.Navbar>
 
       <AppShell.Main>

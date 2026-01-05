@@ -2,6 +2,38 @@
 
 All notable changes to the AWS Cybersecurity Workshop application will be documented in this file.
 
+## [1.9.0] - 2026-01-05 - Assessment Score Sidebar
+
+### Added
+- **Assessment Score Dashboard** - Comprehensive real-time score tracking in sidebar
+  - Large ring progress indicator with percentage completion
+  - Prominent score display showing "current/max points" format
+  - Gold trophy icon for visual motivation and achievement context
+  - Smart color-coded progress (green 80%+, yellow 60-79%, red <60%)
+  - Real-time exercise completion counter with in-progress tracking
+  - Responsive design maintaining mobile compatibility
+
+### Enhanced
+- **User Experience**
+  - Replaced static category sections with dynamic score visualization
+  - Immediate feedback on workshop progress and performance
+  - Visual motivation through achievement-focused design
+  - Clear target visualization for 10-point workshop completion
+  - Automatic updates as students complete exercises
+
+### Technical
+- Added `RingProgress` component with dynamic color coding
+- Implemented real-time score calculation from exercise states
+- Enhanced progress tracking with percentage-based visual feedback
+- Centered responsive layout for optimal score display
+- Added trophy icon and achievement-oriented visual design
+
+### UI/UX
+- Transformed sidebar from static categories to dynamic score tracker
+- Prominent numerical score display for immediate progress awareness
+- Color psychology implementation for performance feedback
+- Clean, focused presentation encouraging completion
+
 ## [1.8.0] - 2026-01-05 - Student Information Integration
 
 ### Added
