@@ -11,7 +11,12 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docker:build": "docker build -t aws-cybersec-workshop .",
+    "docker:run": "docker run -p 3002:3002 aws-cybersec-workshop",
+    "docker:dev": "docker-compose --profile dev up --build",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down"
   },
   "dependencies": {
     "@aws-sdk/client-auto-scaling": "^3.962.0",
